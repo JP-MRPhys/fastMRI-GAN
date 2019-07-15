@@ -23,7 +23,7 @@ Features:
 import pathlib
 import tensorflow as tf
 import os
-import nibabel as nib
+#import nibabel as nib
 import numpy as np
 import tensorflow.contrib.slim as slim
 import random
