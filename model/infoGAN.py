@@ -22,18 +22,11 @@ class infoGAN:
         self.z_dim = 100
         self.w2 = self.w / 2  #
         self.h2 = self.h / 2  #
-        self.d = 1  # z or channels
-        self.X_train = tf.placeholder(tf.float32, [None, None, None, self.d], name='X_train')
-        self.X_conditioning = tf.placeholder(tf.float32, [None, None, None, self.d+1], name='X_train_conditioning')
+        self.d = 1  #  depth or channels
         self.batch_size = 10;
         self.num_classes = 10  # anging number of features to 5
-
-
-
         self.latent1_dim=1  #centre windows
-        self.latent2_dim=15  #accelerations
-
-
+        self.latent2_dim=1  #accelerations
         # now create the network
         self.keep_prob = 0.5  # that the drop
         self.drop_out = self.keep_prob
@@ -42,37 +35,34 @@ class infoGAN:
         self.initializer = tf.truncated_normal_initializer(stddev=0.2)
 
         # Inputs for Discriminator and latent variable
-        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
-
         # [Batch,size, kspace_dim1, kspace_dim2, kspace_dim3] the final c is the k-space which we sub-sample
-        self.c = tf.placeholder(tf.float32, [None, self.w, self.h])
+        # input the latent variable to create obtain the loss functions
+        self.X_train = tf.placeholder(tf.float32, [None, None, None, self.d], name='X_train')
+        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+        self.c = tf.placeholder(tf.float32, [None, 640, 368, self.d+1])
+        self.latent1=tf.placeholder(tf.float32, [None, self.latent1_dim])         #they are for centre function
+        self.latent2=tf.placeholder(tf.float32, [None, self.latent2_dim])         #they are for accelerations
 
-        #input the latent variable to create obtain the loss functions
-        self.latent1=tf.placeholder(tf.float32, [None])   #they are for centre function
-        self.latent2=tf.placeholder(tf.float32, [None])         #they are for accelerations
-
-        self.Gz = self.generator(self.z, self.c)
-        self.print_shape(self.Gz)
-
-        
-        # Probabilities for real images
         self.input_image = tf.image.resize_images(self.X_train, [np.int(self.w), np.int(self.h)])
-        # self.Dx, self.Dx_logits = self.discriminator(self.input_image, self.conditioning_input)
+        self.c_resize = tf.image.resize_images(self.c, [np.int(640), np.int(368)])
+
+        print(self.c_resize)
+
+        self.Gz = self.generator(self.z, self.c_resize)
+
+        # Probabilities for real images
         self.Dx, self.Dx_logits, _ = self.discriminator(self.input_image)
 
         # Probabilities for generator images
         print("Discriminator Shape 2:")
-        # self.Dz, self.Dz_logits = self.discriminator(self.Gz, self.conditioning_input, reuse=True)
         self.Dz, self.Dz_logits, self.G_z_c = self.discriminator(self.Gz, reuse=True)
-
-        # Adversarial training using cross entropy for G and D loss, plus additional losses
+        # Adversarial training using cross entropy for G and D loss, plus additional losses for infoGAN
         # Discriminator loss
 
         self.d_loss_real = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(logits=self.Dx_logits, labels=tf.ones_like(self.Dx)))
 
         self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.Dz_logits, labels=tf.zeros_like(self.Dz)))
-
         self.d_loss = self.d_loss_fake + self.d_loss_real
 
         # Generator loss (adversarial)
@@ -81,26 +71,22 @@ class infoGAN:
         # Latent loss (from network Q)    
         self.latent_1_posterior, self.latent_2_posterior=self.Q(self.G_z_c)
 
-
-
         self.q_loss =self.compute_Q_loss(self.latent_1_posterior, self.latent_2_posterior, self.latent1, self.latent2)
 
 
+        self.total_d_loss=self.d_loss+self.q_loss
+        self.total_g_loss=self.g_loss+self.q_loss
 
         # get the gradients for the generator and discriminator
         self.tvars = tf.trainable_variables()
-
         self.d_gradients = [var for var in self.tvars if 'd_' in var.name]
         self.g_gradients = [var for var in self.tvars if 'g_' in var.name]
-        self.Q_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = 'Q')
-        # Use the Adam Optimizers for discriminator and generator
-        # LR = self.learning_rate
-        # BTA = 0.5
+        self.Q_gradients = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = 'Q')
 
-        self.OptimizerD = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.d_loss,var_list=self.d_gradients)
-        self.OptimizerG = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.g_loss,var_list=self.g_gradients)
-        self.OptimizerQ = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.q_loss,var_list=[self.g_gradients,self.Q_variables])
+        print(self.g_gradients)
 
+        self.OptimizerD = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_d_loss,var_list=self.d_gradients)
+        self.OptimizerG = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_g_loss,var_list=self.g_gradients)
         # summary and writer for tensorboard visulization
 
         # tf.summary.image("Segmentation", tf.to_float(self.segmented_image))
@@ -180,17 +166,17 @@ class infoGAN:
         :return: image (G(z,c))
         """
 
-
         # need to downsmaple kspace before combining it with noise
-        d=tf.layers.dense(tf.layers.flatten(c),256, activation=None)
+        d = tf.layers.dense(tf.layers.flatten(c),1024, activation=None, name='g_dense1')  #may need to change activations here
+        d=tf.layers.dense(tf.layers.flatten(d),256, activation=None, name='g_dense2')  #may need to change activations here
 
         z=tf.concat([z,d],axis=1)
+        self.print_shape(z)
         z_, self.h0_w, self.h0_b = linear(z, 64 * 4 * 4 * 8, 'g_h0_lin', with_w=True)
         z_resize = tf.reshape(z_, [-1, 4, 4, 64 * 8])  # add a-relu
         z_resize = tf.nn.relu(z_resize)
 
         self.print_shape(z_resize)
-        self.print_shape(c)
 
         up_2 = upsampling(z_resize, [self.batch_size, 8, 8], 256, 512, 2, name='g_up3')
         up_3 = upsampling(up_2, [self.batch_size, 16, 16], 128, 256, 2, name='g_up4')
@@ -215,7 +201,7 @@ class infoGAN:
 
         with tf.variable_scope('Q'):
 
-            Q1 = tf.layers.dense(x,128)
+            Q1 = tf.layers.dense(tf.layers.flatten(x),128)
             latent1 =  tf.layers.dense(Q1,self.latent1_dim, activation=None)
             latent2 = tf.layers.dense(Q1, self.latent2_dim, activation=None)
 
@@ -224,8 +210,9 @@ class infoGAN:
 
     def compute_Q_loss(self, latent_posterior_1, latent_posterior_2, latent1, latent2):
 
-        loss1=tf.reduce_sum(tf.square(latent_posterior_1-latent1), axis=-1)
-        loss2=tf.reduce_sum(tf.square(latent_posterior_2-latent2), axis=-1)
+
+        loss1=tf.reduce_sum(tf.squared_difference(latent_posterior_1,latent1), axis=-1)
+        loss2=tf.reduce_sum(tf.squared_difference(latent_posterior_2,latent2), axis=-1)
 
         total_Q_loss=tf.reduce_mean(loss1)+0.5*tf.reduce_mean(loss2)
 
@@ -296,7 +283,7 @@ class infoGAN:
                 self.sess.run(self.init)
 
                 counter = 0
-                learningrate = 0.001
+                learningrate = 0.0005
 
                 for epoch in range(0, self.num_epochs):
 
@@ -313,7 +300,7 @@ class infoGAN:
 
                         for file in filenames:
 
-                            centre_fraction, acceleration = self.get_random_accelerations(self.batch_size)
+                            centre_fraction, acceleration = self.get_random_accelerations()
 
                             #training_images: fully sampled MRI images
                             #training labels: Masked k-spaced, obtained using various mask functions, here we obtain using center_fraction =[], acceleration=[]
@@ -325,31 +312,48 @@ class infoGAN:
                             [batch_length, x, y,z] = training_images.shape
 
                             print(training_images.shape)
+                            print(training_labels.shape)
 
                             for idx in range(0, batch_length, self.batch_size):
-                                    z_samples = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim)).astype(np.float32)
 
-                                    batch_images = training_images[idx:idx + self.batch_size, :, :]
-                                    batch_labels = training_labels[idx:idx + self.batch_size, :, :]
 
+                                batch_images = training_images[idx:idx + self.batch_size, :, :, :] #this is images X
+                                batch_labels = training_labels[idx:idx + self.batch_size, :, :, :] #this is k-space
+
+
+                                if (batch_labels.shape[0]==10 and batch_labels.shape[1]==640 and batch_labels.shape[2]==368):
+
+
+                                    z_samples = np.random.uniform(-1, 1, size=(batch_images.shape[0], self.z_dim)).astype(
+                                        np.float32)
+
+
+                                    print(batch_labels.dtype)
+                                    print(file)
+
+                                    latent1=np.ones((self.batch_size,self.latent1_dim))*centre_fraction
+                                    latent2 = np.ones((self.batch_size, self.latent2_dim)) * centre_fraction
+
+                                    dict={self.X_train: batch_images,
+                                                   self.c: batch_labels,
+                                                   self.latent1: latent1,
+                                                   self.latent2: latent2,
+                                                   self.learning_rate: learningrate,
+                                                   self.z:z_samples
+                                                   }
 
                                     summary1, opt, loss_D = self.sess.run(
-                                        [self.merged_summary, self.OptimizerD, self.d_loss],
-                                        feed_dict={self.X_train: batch_images,
-                                                   self.learning_rate: learningrate,
-                                                   self.z: z_samples})
+                                        [self.merged_summary, self.OptimizerD, self.total_d_loss],
+                                        feed_dict=dict)
 
-                                    opt, loss_G = self.sess.run([self.OptimizerG, self.g_loss],
-                                                                feed_dict={self.z: z_samples,
-                                                                           self.learning_rate: learningrate})
+                                    opt, loss_G = self.sess.run([self.OptimizerG, self.total_g_loss],
+                                                                feed_dict=dict)
 
 
                                     # emphrical solution to the avoid gradients vansihing issues by training generator twice, different from paper
                                     summary2, opt, loss_G = self.sess.run(
-                                        [self.merged_summary, self.OptimizerG, self.g_loss],
-                                        feed_dict={self.z: z_samples,
-                                                   self.learning_rate: learningrate,
-                                                   self.X_train: batch_images})
+                                        [self.merged_summary, self.OptimizerG, self.total_g_loss],
+                                        feed_dict=dict)
 
                                     counter += 1
 
@@ -374,4 +378,4 @@ if __name__ == '__main__':
 
     VGG_dir = './trained_model/VGG/'
     network = infoGAN(VGG_dir, 'infoGAN')
-    #network.train()
+    network.train()

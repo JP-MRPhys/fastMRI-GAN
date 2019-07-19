@@ -131,9 +131,6 @@ def upsampling(parent, shape, output_channel, input_channel, upscale_factor, nam
 
 
         kernel_size = 2 * upscale_factor - upscale_factor % 2
-
-        print(kernel_size)
-
         stride = upscale_factor
         strides = [1, stride, stride, 1]
 

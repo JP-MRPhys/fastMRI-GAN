@@ -21,21 +21,15 @@ Features:
 
 """
 import pathlib
-import tensorflow as tf
-import os
 #import nibabel as nib
-import numpy as np
-import tensorflow.contrib.slim as slim
 import random
 from utils.Layers import *
-from utils.fastmri_data import  get_random_accelerations, get_training_pair
+from model.fastmri_data import  get_random_accelerations, get_training_pair
 #from fileIO import *
 #from jpegIO import *
 #from voc_utils import *
-import math
 #from VGG16 import vgg16_cnn_emb
 # Just disables the warning, doesn't enable AVX/FMA
-import os
 
 
 class DCGAN:
@@ -237,10 +231,7 @@ class DCGAN:
         up_6 = upsampling(up_5, [self.batch_size, 128, 128], 32, 16, 2, name='g_up7')
         up_7 = upsampling(up_6, [self.batch_size, 256, 256], 1,32 , 2, name='g_up8')
 
-
-
-        print("generator")
-
+        print("Completed creating generator with last layer shape of")
         self.print_shape(up_7)
 
         return tf.nn.tanh(up_7)
@@ -267,27 +258,10 @@ class DCGAN:
             with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
                 self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
-
-                """
-                # load weights for VGG
-                # load weights
-                npz = np.load(self.vggdir + 'vgg16_weights.npz')
-                vgg_weights = []
-                for idx, val in enumerate(sorted(npz.items())[0:20]):
-                    print("  Loading pretrained VGG16, CNN part %s" % str(val[1].shape))
-                    vgg_weights.append(self.net_vgg_conv4_good.all_params[idx].assign(val[1]))
-
-                print("Completed loading the weights")
-                self.sess.run(vgg_weights)
-              
-                # self.net_vgg_conv4_good.print_params(False)
-                
-                """
-
                 self.sess.run(self.init)
 
                 counter = 0
-                learningrate = 0.001
+                learningrate = 0.0001
 
                 for epoch in range(0, self.num_epochs):
 
@@ -295,7 +269,7 @@ class DCGAN:
 
                         filenames = list(pathlib.Path(self.training_datadir).iterdir())
 
-                        random.shuffle(filenames)
+                        np.random.shuffle(filenames)
                         print("Number training data " + str(len(filenames)))
 
                         np.random.shuffle(filenames)
@@ -313,7 +287,6 @@ class DCGAN:
 
                             [batch_length, x, y,z] = training_images.shape
 
-                            print(training_images.shape)
 
                             for idx in range(0, batch_length, self.batch_size):
                                     z_samples = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim)).astype(
@@ -346,13 +319,13 @@ class DCGAN:
                                     Average_loss_D = (Average_loss_D + loss_D) / 2
                                     Average_loss_G = (Average_loss_G + loss_G) / 2
 
-                                    if (counter % 20 == 0):
+                                    if (counter % 500 == 0):
                                         self.train_writer.add_summary(summary1, counter)
                                         self.train_writer.add_summary(summary2)
 
-                                    print("Epoch: ",
-                                          str(epoch) + " learning rate:" + str(learningrate) + " Generator loss:" + str(
-                                              loss_G) + " Discriminator loss: " + str(loss_D))
+                                    if (counter % 20==0):
+                                        print("Epoch: ",
+                                          str(epoch) + " learning rate:" + str(learningrate) + " Generator loss:" + str(loss_G) + " Discriminator loss: " + str(loss_D))
 
 
                 print("Training completed .... Saving model")
@@ -360,13 +333,9 @@ class DCGAN:
                 print("All completed good bye")
 
 
-
-
-
-
 if __name__ == '__main__':
 
 
     VGG_dir = './trained_model/VGG/'
-    network = DCGAN(VGG_dir, 'pascal')
+    network = DCGAN(VGG_dir, 'DCGAN')
     network.train()
