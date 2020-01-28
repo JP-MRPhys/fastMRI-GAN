@@ -10,4 +10,4 @@ numpy==1.16.3
 Pillow==6.1.0
 nibabel==2.4.1
 skimage==0.0
-tensorflow==1.14.0
+tensorflow==1.15.2
