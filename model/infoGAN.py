@@ -23,8 +23,8 @@ class infoGAN:
         self.w2 = self.w / 2  #
         self.h2 = self.h / 2  #
         self.d = 1  #  depth or channels
-        self.batch_size = 10;
-        self.num_classes = 10  # anging number of features to 5
+        self.batch_size = 20;
+        self.num_classes = 20  # anging number of features to 5
         self.latent1_dim=1  #centre windows
         self.latent2_dim=1  #accelerations
         # now create the network
@@ -43,10 +43,10 @@ class infoGAN:
         self.latent1=tf.placeholder(tf.float32, [None, self.latent1_dim])         #they are for centre function
         self.latent2=tf.placeholder(tf.float32, [None, self.latent2_dim])         #they are for accelerations
 
-        self.input_image = tf.image.resize_images(self.X_train, [np.int(self.w), np.int(self.h)])
+        self.input_image = tf.image.resize_images(self.X_train, [np.int(64), np.int(64)])
         self.c_resize = tf.image.resize_images(self.c, [np.int(640), np.int(368)])
 
-        print(self.c_resize)
+        print(self.input_image)
 
         self.Gz = self.generator(self.z, self.c_resize)
 
@@ -181,9 +181,13 @@ class infoGAN:
         up_2 = upsampling(z_resize, [self.batch_size, 8, 8], 256, 512, 2, name='g_up3')
         up_3 = upsampling(up_2, [self.batch_size, 16, 16], 128, 256, 2, name='g_up4')
         up_4 = upsampling(up_3, [self.batch_size, 32, 32], 32, 128, 2, name='g_up5')
+        up_5 = upsampling(up_4, [self.batch_size, 64, 64], 1, 32, 2, name='g_up6')
         up_5 = upsampling(up_4, [self.batch_size, 64, 64], 16, 32, 2, name='g_up6')
         up_6 = upsampling(up_5, [self.batch_size, 128, 128], 32, 16, 2, name='g_up7')
         up_7 = upsampling(up_6, [self.batch_size, 256, 256], 1,32 , 2, name='g_up8')
+
+
+        self.print_shape(up_7)
 
         return tf.nn.tanh(up_7)
 
@@ -321,15 +325,10 @@ class infoGAN:
                                 batch_labels = training_labels[idx:idx + self.batch_size, :, :, :] #this is k-space
 
 
-                                if (batch_labels.shape[0]==10 and batch_labels.shape[1]==640 and batch_labels.shape[2]==368):
-
+                                if (batch_labels.shape[0]==self.batch_size and batch_labels.shape[1]==640 and batch_labels.shape[2]==368):
 
                                     z_samples = np.random.uniform(-1, 1, size=(batch_images.shape[0], self.z_dim)).astype(
                                         np.float32)
-
-
-                                    print(batch_labels.dtype)
-                                    print(file)
 
                                     latent1=np.ones((self.batch_size,self.latent1_dim))*centre_fraction
                                     latent2 = np.ones((self.batch_size, self.latent2_dim)) * centre_fraction
@@ -379,3 +378,4 @@ if __name__ == '__main__':
     VGG_dir = './trained_model/VGG/'
     network = infoGAN(VGG_dir, 'infoGAN')
     network.train()
+

@@ -19,16 +19,24 @@ Features:
 5. For employing Conditional -DC-GAN (changes required as per comments in the code)
 
 
+
 """
+
+def fft_abs_for_map_fn(x):
+    x = (x + 1.) / 2.
+    x_complex = tf.complex(x, tf.zeros_like(x))[:, :, 0]
+    fft = tf.spectral.fft2d(x_complex)
+    fft_abs = tf.abs(fft)
+    return fft_abs
+
+
+
 import pathlib
 #import nibabel as nib
 import random
 from utils.Layers import *
 from model.fastmri_data import  get_random_accelerations, get_training_pair
-#from fileIO import *
-#from jpegIO import *
-#from voc_utils import *
-#from VGG16 import vgg16_cnn_emb
+
 # Just disables the warning, doesn't enable AVX/FMA
 
 
@@ -42,19 +50,19 @@ class DCGAN:
         self.num_epochs = 1000
         self.display_step = 20
         self.global_step = 0
-        self.w = 256  # x
-        self.h = 256  # y
+        self.w = 128  # x
+        self.h = 128  # y
         self.z_dim = 100
         self.w2 = self.w / 2  #
         self.h2 = self.h / 2  #
         self.d = 1  # z or channels
         self.X_train = tf.placeholder(tf.float32, [None, None, None, self.d], name='X_train')
         self.X_conditioning = tf.placeholder(tf.float32, [None, None, None, self.d+1], name='X_train_conditioning')
-        self.batch_size = 10;
+        self.batch_size = 30;
         self.num_classes = 10  # anging number of features to 5
-        self.g_gamma = 0  # 0.025weight for perceptual loss
-        self.g_alpha = 0  # 0.1weight for pixel loss
-        self.g_beta = 0.  # 0.1weight for frequency loss
+        self.g_gamma = 0.0025  # 0.025weight for perceptual loss
+        self.g_alpha = 0.1  # 0.1weight for pixel loss
+        self.g_beta = 0.1  # 0.1weight for frequency loss
         self.g_adv = 1  # weight for frequency loss
 
         self.training_dir = []
@@ -95,19 +103,19 @@ class DCGAN:
         # self.generator_logits = self.generator(self.input_image, self.conditioning_input)
         # self.Gz = tf.reduce_mean(self.generator_logits, 3, keepdims=True, name='generator_output')
 
-        self.Gz = self.generator(self.z)
+        self.Gz = self.generator_2(self.z)
         self.print_shape(self.Gz)
         self.Gz_244 = tf.image.resize_images(self.Gz, [244, 244])
         # self.Gz = tf.image.resize_images(self.Gz, [self.w, self.h])
 
         # Probabilities for real images
         # self.Dx, self.Dx_logits = self.discriminator(self.input_image, self.conditioning_input)
-        self.Dx, self.Dx_logits = self.discriminator(self.input_image)
+        self.Dx, self.Dx_logits = self.discriminator_2(self.input_image)
 
         # Probabilities for generator images
         print("Discriminator Shape 2:")
         # self.Dz, self.Dz_logits = self.discriminator(self.Gz, self.conditioning_input, reuse=True)
-        self.Dz, self.Dz_logits = self.discriminator(self.Gz, reuse=True)
+        self.Dz, self.Dz_logits = self.discriminator_2(self.Gz, reuse=True)
 
         # Adversarial training using cross entropy for G and D loss, plus additional losses
         # Discriminator loss
@@ -121,8 +129,9 @@ class DCGAN:
         self.d_loss = self.d_loss_fake + self.d_loss_real
 
         # Generator loss (adversarial)
-        self.g_loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(logits=self.Dz_logits, labels=tf.ones_like(self.Dz)))
+        self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.Dz_logits, labels=tf.ones_like(self.Dz)))
+
+
 
 
         # get the gradients for the generator and discriminator
@@ -145,7 +154,8 @@ class DCGAN:
 
         # tf.summary.image("Segmentation", tf.to_float(self.segmented_image))
         tf.summary.image("Generator fake output", self.Gz)
-        tf.summary.image("Input image", self.input_image, max_outputs=3)
+        #tf.summary.image("Small image", self.Gz_small)
+        tf.summary.image("Input image", self.input_image)
         #tf.summary.image("Mask image", self.conditioning_input_resize)
 
         tf.summary.histogram("Descriminator logits (Real)", self.Dx_logits)
@@ -180,33 +190,35 @@ class DCGAN:
 
         # Conv Layer 1, No batch normalization, leaky relu activation
         d1_conv = slim.convolution2d(input, 16, [2, 2], stride=STRIDE, padding=PADDING, \
-                                     biases_initializer=None, activation_fn=prelu, \
+                                     biases_initializer=None, activation_fn=tf.nn.leaky_relu, \
                                      reuse=reuse, scope='d_conv1', weights_initializer=self.initializer)
+
 
         # Conv Layer 2, batch normalization, leaky relu activation
         d2_conv = slim.convolution2d(d1_conv, 32, [2, 2], stride=STRIDE, padding=PADDING, \
-                                     normalizer_fn=slim.batch_norm, activation_fn=prelu, \
+                                     normalizer_fn=slim.batch_norm, activation_fn=tf.nn.leaky_relu, biases_initializer=None,\
                                      reuse=reuse, scope='d_conv2', weights_initializer=self.initializer)
+
+
 
         # Conv Layer 3, batch normalization, leaky relu activation
         d3_conv = slim.convolution2d(d2_conv, 64, [2, 2], stride=STRIDE, padding=PADDING, \
-                                     normalizer_fn=slim.batch_norm, activation_fn=prelu, \
+                                     normalizer_fn=slim.batch_norm, activation_fn=tf.nn.leaky_relu, biases_initializer=None,\
                                      reuse=reuse, scope='d_conv3', weights_initializer=self.initializer)
+
 
         # Conv Layer 3, batch normalization, leaky relu activation
         d4_conv = slim.convolution2d(d3_conv, 128, [2, 2], stride=STRIDE, padding=PADDING, \
-                                     activation_fn=prelu, reuse=reuse, scope='d_conv4',weights_initializer=self.initializer)
+                                     activation_fn=tf.nn.leaky_relu, biases_initializer=None,reuse=reuse, scope='d_conv4',normalizer_fn=slim.batch_norm,weights_initializer=self.initializer)
+
 
         # Conv Layer 3, batch normalization, leaky relu activation
         d5_conv = slim.convolution2d(d4_conv, 256, [2, 2], stride=STRIDE, padding=PADDING, \
-                                     activation_fn=prelu, reuse=reuse, scope='d_conv5', weights_initializer=self.initializer)
+                                     activation_fn=tf.nn.leaky_relu, reuse=reuse, scope='d_conv5', biases_initializer=None, weights_initializer=self.initializer)
 
-        d6_conv = slim.convolution2d(d5_conv, self.num_classes, [1, 1], stride=STRIDE, padding=PADDING, \
-                                     activation_fn=prelu, reuse=reuse, scope='d_conv6', weights_initializer=self.initializer)  # for first working version 7 we employed d4_conv
 
-        # Dense Layer (Fully connected), sigmoid activation
-        d6_dense = slim.flatten(d6_conv, scope='d_output')
-
+        # Dense Layer (flatten the output), sigmoid activation
+        d6_dense = slim.flatten(d5_conv, scope='d_output')
 
 
         return tf.nn.sigmoid(d6_dense), d6_dense
@@ -220,21 +232,118 @@ class DCGAN:
         """
 
         z_, self.h0_w, self.h0_b = linear(z, 64 * 4 * 4 * 8, 'g_h0_lin', with_w=True)
+        z_ = slim.batch_norm(z_)
+        z_= prelu(z_)
 
         z_resize = tf.reshape(z_, [-1, 4, 4, 64 * 8])  # add a-relu
-        z_resize = tf.nn.relu(z_resize)
         # up_1 = upsampling(z_resize, [self.batch_size, 8, 8], 512, 1024, 2, name='g_up2')
-        up_2 = upsampling(z_resize, [self.batch_size, 8, 8], 256, 512, 2, name='g_up3')
-        up_3 = upsampling(up_2, [self.batch_size, 16, 16], 128, 256, 2, name='g_up4')
-        up_4 = upsampling(up_3, [self.batch_size, 32, 32], 32, 128, 2, name='g_up5')
-        up_5 = upsampling(up_4, [self.batch_size, 64, 64], 16, 32, 2, name='g_up6')
-        up_6 = upsampling(up_5, [self.batch_size, 128, 128], 32, 16, 2, name='g_up7')
-        up_7 = upsampling(up_6, [self.batch_size, 256, 256], 1,32 , 2, name='g_up8')
+        up_2 = upsampling_2D(z_resize, [self.batch_size, 8, 8], 256, 512, 2, name='g_up3', last_layer=False)
+        up_3 = upsampling_2D(up_2, [self.batch_size, 16, 16], 128, 256, 2, name='g_up4', last_layer=False)
+        up_4 = upsampling_2D(up_3, [self.batch_size, 32, 32], 32, 128, 2, name='g_up5', last_layer=False)
+        up_5 = upsampling_2D(up_4, [self.batch_size, 64, 64], 16, 32, 2, name='g_up6', last_layer=False)
+        up_6 = upsampling_2D(up_5, [self.batch_size, 128, 128], 32, 16, 2, name='g_up7', last_layer=False)
+        up_7 = upsampling_2D(up_6, [self.batch_size, 256, 256], 1,32 , 2, name='g_up8', last_layer=True)
 
         print("Completed creating generator with last layer shape of")
         self.print_shape(up_7)
 
         return tf.nn.tanh(up_7)
+
+    def discriminator_2(self,image, reuse=False):
+
+        with tf.variable_scope("discriminator") as scope:
+            if reuse:
+                scope.reuse_variables()
+
+            df_dim = 128  # last image dimension
+
+            # TODO: Investigate how to parameterise discriminator based off image size.
+            h0 = conv2d(image, df_dim, name='d_d2_h0_conv')
+            h0 = tf.nn.leaky_relu(h0)
+            # h0 = tf.layers.batch_normaliztion(h0)
+
+            h1 = conv2d(h0, df_dim * 2, name='d_d2_h1_conv')
+            h1 = tf.nn.leaky_relu(h1)
+            h1 = tf.layers.batch_normalization(h1)
+
+            h2 = conv2d(h1, df_dim * 4, name='d_d2_h2_conv')  # 512
+            h2 = tf.nn.leaky_relu(h2)
+            h2 = tf.layers.batch_normalization(h2)
+
+            h3 = conv2d(h2, df_dim * 8, name='d_d2_h3_conv')  # 1024
+            h3 = tf.nn.leaky_relu(h3)
+            h3 = tf.layers.batch_normalization(h3)
+
+            h4 = conv2d(h3, df_dim * 16, name='d_d2_h4_conv')
+            h4 = tf.nn.leaky_relu(h4)
+            h4 = tf.layers.batch_normalization(h4)
+
+            #h5 = conv2d(h4, df_dim * 32, name='d_d2_h5_conv')
+            #h5 = tf.nn.leaky_relu(h5)
+            #h5 = tf.layers.batch_normalization(h5)
+
+            h5 = tf.layers.flatten(h4)
+
+            #h6 = linear(h5, 1, 'd_d2_h5_lin')
+            output = tf.nn.sigmoid(h5)
+
+            print(h1)
+            print(h2)
+            print(h3)
+            print(h4)
+            print(h5)
+            print(output)
+
+            return output, h5
+
+    def generator_2(self, z):
+
+            """
+            :param z: random array input dimension (batch_size, z_dim)
+            :return: image (Gz)
+            """
+
+            batch_size = self.batch_size
+
+            z_ = linear(z, 64 * 4 * 4 * 8, 'g_h0_lin')
+
+            z_resize = tf.reshape(z_, [-1, 4, 4, 64 * 8])  # shape is [batch_sie, 4,4,512]
+            z_resize = tf.nn.relu(z_resize)
+            z_resize=tf.layers.batch_normalization(z_resize)
+
+            up1 = conv2d_transpose(z_resize, [batch_size, 8, 8, 256], name='g_up1')
+            up1 = tf.nn.relu(up1)
+            up1 = tf.layers.batch_normalization(up1)
+            up2 = conv2d_transpose(up1, [batch_size, 16, 16, 128], name='g_up2')
+            up2 = tf.nn.relu(up2)
+            up2 = tf.layers.batch_normalization(up2)
+            up3 = conv2d_transpose(up2, [batch_size, 32, 32, 64], name='g_up3')
+            up3 = tf.nn.relu(up3)
+            up3 = tf.layers.batch_normalization(up3)
+            up4 = conv2d_transpose(up3, [batch_size, 64, 64, 32], name='g_up4')
+            up4 = tf.nn.relu(up4)
+            up4 = tf.layers.batch_normalization(up4)
+            up6 = conv2d_transpose(up4, [batch_size, 128, 128, 1], name='g_up6')
+
+            """
+            up5 = conv2d_transpose(up4, [batch_size, 128, 128, 16], name='g_up5')
+            up5 = tf.nn.relu(up5)
+            up5 = tf.layers.batch_normalization(up5)
+            up6 = conv2d_transpose(up5, [batch_size, 256, 256, 1], name='g_up6')
+   
+            """
+
+            print("Completed creating generator with last layer shape of")
+            print(up6.shape)
+
+            #small_image=tf.nn.tanh(conv2d_transpose(up3, [batch_size, 64, 64, 1], name='g_small_image'))
+
+            return tf.nn.tanh(up6)
+
+
+
+
+
 
     def print_shape(self, tensor):
         print(tensor.get_shape().as_list())
@@ -284,13 +393,12 @@ class DCGAN:
                             #training labels: Masked k-spaced, obtained using various mask functions, here we obtain using center_fraction =[], acceleration=[]
 
                             training_images, training_labels = get_training_pair(file, centre_fraction, acceleration)
-
                             [batch_length, x, y,z] = training_images.shape
 
-
                             for idx in range(0, batch_length, self.batch_size):
-                                    z_samples = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim)).astype(
-                                        np.float32)
+
+
+                                    z_samples = np.random.uniform(0, 256, size=(self.batch_size, self.z_dim)).astype(np.float32)
 
                                     batch_images = training_images[idx:idx + self.batch_size, :, :]
                                     batch_labels = training_labels[idx:idx + self.batch_size, :, :]
@@ -319,7 +427,7 @@ class DCGAN:
                                     Average_loss_D = (Average_loss_D + loss_D) / 2
                                     Average_loss_G = (Average_loss_G + loss_G) / 2
 
-                                    if (counter % 500 == 0):
+                                    if (counter % 50 == 0):
                                         self.train_writer.add_summary(summary1, counter)
                                         self.train_writer.add_summary(summary2)
 
@@ -331,6 +439,46 @@ class DCGAN:
                 print("Training completed .... Saving model")
                 #self.save_model(self.model_name)
                 print("All completed good bye")
+
+
+    def generator_test(self):
+
+        with tf.device('/gpu:0'):
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+
+                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                self.sess.run(self.init)
+
+                counter = 0
+                learningrate = 0.0001
+
+                for epoch in range(0, self.num_epochs):
+
+                                    print("epoch" + str(epoch))
+
+                                    z_samples = np.random.uniform(0, 1.0, size=(self.batch_size, self.z_dim)).astype(np.float32)
+
+                                    dummy_image = np.random.uniform(0, 1.0, size=(self.batch_size, self.w, self.h, self.d)).astype(
+                                        np.float32)
+
+                                    summary2, Gz, Gz_small = self.sess.run(
+                                        [self.merged_summary, self.Gz, self.Gz_small],
+                                        feed_dict={self.z: z_samples,
+                                                   self.learning_rate: learningrate,
+                                                   self.X_train: dummy_image})
+
+                                    counter+=1
+
+                                    if (counter % 50 == 0):
+                                        self.train_writer.add_summary(summary2, counter)
+
+
+
+
+
+
+
+
 
 
 if __name__ == '__main__':

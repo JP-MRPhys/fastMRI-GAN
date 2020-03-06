@@ -20,13 +20,13 @@ def xavier_uniform_dist_conv3d(shape):
 # parametric leaky relu
 def prelu(x):
     alpha = tf.get_variable('alpha', shape=x.get_shape()[-1], dtype=x.dtype, initializer=tf.constant_initializer(0.1))
-    return tf.maximum(0.0, x) + alpha * tf.minimum(0.0, x)
+    return tf.maximum(0.2, x) + alpha * tf.minimum(0.2, x)
 
 def convolution_block(parent, kernal_size, stride, padding, keep_prob, name, batch_normalisation, tanh):
     # returns a conv block using the kernel_size stride and padding, keep_prob is the next keep prob for drop out layer
 
     with tf.variable_scope(name):
-        init = tf.truncated_normal_initializer(stddev = 0.25)
+        init = tf.truncated_normal_initializer(stddev = 0.2)
         weights = tf.get_variable(name = 'weights', shape = kernal_size, dtype = 'float32', initializer = init)
         conv = tf.nn.conv2d(parent, weights, stride, padding = 'SAME')
         bias = tf.get_variable(name = 'bias', shape = [kernal_size[-1]], dtype = 'float32', initializer = init)
@@ -34,7 +34,7 @@ def convolution_block(parent, kernal_size, stride, padding, keep_prob, name, bat
 
         if (batch_normalisation):
             print("Applied batch normalisation for the layer" + name)
-            conv_with_bias=slim.batch_norm(tf.nn.relu(conv_with_bias), activation_fn=None)
+            #conv_with_bias=slim.batch_norm(tf.nn.relu(conv_with_bias), activation_fn=None)
 
         if (tanh):
             print("Apply tanh activation")
@@ -44,8 +44,6 @@ def convolution_block(parent, kernal_size, stride, padding, keep_prob, name, bat
         #conv_dropout=tf.nn.dropout(conv, keep_prob=keep_prob)
 
         return conv_out
-
-
 
 
 
@@ -150,6 +148,57 @@ def upsampling(parent, shape, output_channel, input_channel, upscale_factor, nam
 
         return dconv
 
+
+def upsampling_2D(parent, shape, output_channel, input_channel, upscale_factor, name, last_layer):
+    kernel_size = 2 * upscale_factor - upscale_factor % 2
+    stride = upscale_factor
+    strides = [1, stride, stride, 1]
+    kernel_size=5
+    print("Kernel size " + str(kernel_size))
+    print("Upscale factor" + str(upscale_factor))
+
+    with tf.variable_scope(name):
+        output_shape = [shape[0], shape[1], shape[2], output_channel]
+        filter_shape = [kernel_size, kernel_size, output_channel, input_channel]
+        weights = _get_bilinear_filter(filter_shape, upscale_factor)
+        dcon = tf.nn.conv2d_transpose(parent, weights, output_shape, strides=strides, padding='SAME')
+
+        if not last_layer:
+            dconv = slim.batch_norm(dcon)
+            dconv = tf.nn.relu(dconv)
+            #dconv=tf.nn.dropout(dconv, 0.25)
+        else:
+            dconv=dcon
+
+    return dconv
+
+"""
+def upsampling_2D(parent, shape, output_channel, input_channel, upscale_factor, name, last_layer):
+    kernel_size = 2 * upscale_factor - upscale_factor % 2
+    stride = upscale_factor
+    strides = [1, stride, stride, 1]
+
+    print(kernel_size)
+
+    with tf.variable_scope(name):
+        output_shape = [shape[0], shape[1], shape[2], output_channel]
+        filter_shape = [kernel_size, kernel_size, output_channel, input_channel]
+        weights = _get_bilinear_filter(filter_shape, upscale_factor)
+        deconv = tf.nn.conv2d_transpose(parent, weights, output_shape, strides=strides, padding='SAME')
+        bias_init = tf.constant(0.0, shape=[output_channel])
+        bias = tf.get_variable('bias', initializer=bias_init)
+        dconv_with_bias = tf.nn.bias_add(deconv, bias)
+
+        if not last_layer:
+            # dconv_with_bias = slim.batch_norm(dconv_with_bias)
+            dconv = tf.nn.relu(dconv_with_bias)
+            # dconv=tf.nn.dropout(dconv, 0.25)
+        else:
+            dconv = dconv_with_bias
+
+    return dconv
+
+"""
 def upsampling_3d(parent, shape, output_channel, input_channel, upscale_factor, name):
 
     kernel_size = 2 * upscale_factor - upscale_factor % 2
@@ -189,9 +238,8 @@ def deconvolution_3d(layer_input, filter, output_shape, strides, padding, name):
     return dcov
 
 
-def conv2d_transpose(input_, output_shape,
-                     k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
-                     name="conv2d_transpose", with_w=False):
+def conv2d_transpose(input_, output_shape, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
+                     name="conv2d_transpose", with_w=False, add_bias=False):
     with tf.variable_scope(name):
         # filter : [height, width, output_channels, in_channels]
         w = tf.get_variable('w', [k_h, k_w, output_shape[-1], input_.get_shape()[-1]],
@@ -206,14 +254,33 @@ def conv2d_transpose(input_, output_shape,
             deconv = tf.nn.deconv2d(input_, w, output_shape=output_shape,
                                     strides=[1, d_h, d_w, 1])
 
-        biases = tf.get_variable('biases', [output_shape[-1]], initializer=tf.constant_initializer(0.0))
-        # deconv = tf.reshape(tf.nn.bias_add(deconv, biases), deconv.get_shape())
-        deconv = tf.nn.bias_add(deconv, biases)
+        if (add_bias):
+
+            biases = tf.get_variable('biases', [output_shape[-1]], initializer=tf.constant_initializer(0.0))
+            # deconv = tf.reshape(tf.nn.bias_add(deconv, biases), deconv.get_shape())
+            deconv = tf.nn.bias_add(deconv, biases)
 
         if with_w:
             return deconv, w, biases
         else:
             return deconv
+
+
+def conv2d(input_, output_dim,
+           k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
+           name="conv2d"):
+    with tf.variable_scope(name):
+        w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim],
+                            initializer=tf.truncated_normal_initializer(stddev=stddev))
+        conv = tf.nn.conv2d(input_, w, strides=[1, d_h, d_w, 1], padding='SAME')
+
+        print(conv)
+
+        biases = tf.get_variable('biases', [output_dim], initializer=tf.constant_initializer(0.0))
+        # conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
+        conv = tf.nn.bias_add(conv, biases)
+
+        return conv
 
 
 def max_pooling_3d(layer_input, filter, strides, name):
@@ -243,9 +310,27 @@ def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_w=
     with tf.variable_scope(scope or "Linear"):
         matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,
                                  tf.random_normal_initializer(stddev=stddev))
+
         bias = tf.get_variable("bias", [output_size],
                                initializer=tf.constant_initializer(bias_start))
         if with_w:
             return tf.matmul(input_, matrix) + bias, matrix, bias
         else:
             return tf.matmul(input_, matrix) + bias
+
+
+def linear_layer(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_bais=False):
+    shape = input_.get_shape().as_list()
+
+    with tf.variable_scope(scope or "Linear"):
+        matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,
+                                 tf.random_normal_initializer(stddev=stddev))
+
+        if with_bais:
+
+            bias = tf.get_variable("bias", [output_size],
+                               initializer=tf.constant_initializer(bias_start))
+
+            return tf.matmul(input_, matrix) + bias
+
+        return tf.matmul(input_, matrix)
