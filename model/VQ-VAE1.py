@@ -10,6 +10,7 @@ from model.fastmri_data import get_training_pair_images_vae, get_random_accelera
 from model.layers.vector_quantizier import vector_quantizer
 from model.layers.PixelCNN2 import pixelcnn
 
+#test
 
 grad_clip_pixelcnn=1
 learning_rate_pixelcnn= 1e-3
