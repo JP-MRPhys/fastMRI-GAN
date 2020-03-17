@@ -1,0 +1,262 @@
+import tensorflow as tf
+
+import h5py
+import numpy as np
+import pathlib
+from utils.subsample import MaskFunc
+import utils.transforms as T
+#from matplotlib import pyplot as plt
+from model.fastmri_data import get_training_pair_images_vae, get_random_accelerations
+from model.layers.vector_quantizier import vector_quantizer
+from model.layers.PixelCNN2 import pixelcnn
+
+
+grad_clip_pixelcnn=1
+learning_rate_pixelcnn= 1e-3
+learning_rate=1e-4
+
+class VQ_VAE1(tf.keras.Model):
+    def __init__(self):
+
+        super(VQ_VAE1, self).__init__()
+
+        #TODO: add config parser
+        #self.initizler = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.05, seed=None)
+
+        self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
+
+        self.BATCH_SIZE = 10
+        self.num_epochs = 300
+        self.learning_rate = 1e-3
+        self.model_name="CVAE"
+
+        self.image_dim = 128
+        self.channels = 1
+        self.latent_dim = 64    #embedding dimensions D
+        self.num_embeddings=8   # k: Categorical
+        self.code_size=8
+
+        self.commitment_cost=0.25
+
+        self.kernel_size = 3
+        lrelu = lambda x: tf.keras.activations.relu(x, alpha=0.3)
+        self.activation = lrelu
+
+
+        #Place holders
+        self.input_image_1 = tf.placeholder(tf.float32, shape=[None, 256, 256, self.channels]) #for time being resize images
+        self.input_image = tf.image.resize_images(self.input_image_1, [np.int(self.image_dim), np.int(self.image_dim)])
+        self.image_shape = self.input_image.shape[1:]
+
+        #pixelCNN inputs
+        self.pixelCNN_input=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size))
+
+
+        self.learning_rate = tf.placeholder(tf.float32, [], name='learning_rate')
+
+
+        self.encoder = self.inference_net()
+        self.decoder = self.generative_net()  # note these are keras model
+
+        z_e = self.encoder(self.input_image)
+
+        vq=vector_quantizer(z_e,self.latent_dim, self.num_embeddings, self.commitment_cost)
+        z_q=vq['quantized']
+        logits = self.decoder(z_q)
+        logits = tf.sigmoid(logits)
+
+        # cal mse loss
+        sse_loss =  tf.reduce_sum(tf.square(self.input_image - logits))
+        self.total_loss = sse_loss + vq['loss']
+        #self.list_gradients = tf.trainable_variables()
+        self.Optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_loss)
+
+        #reconsturctions
+        vq_recons=vector_quantizer(z_e,self.latent_dim, self.num_embeddings, self.commitment_cost, only_lookup=True,inputs_indices=pixel_cnn_output)
+        self.reconstruction=tf.sigmoid(self.decoder(vq_recons['quantized']))
+
+
+        #pixel CNN
+
+        #inputs
+        self.pixelCNN_train_input=vq['encoding_indices']  # place  holder for separate training of pixelCNN
+
+        self.pixelCNN=pixelcnn(self.pixelCNN_input, num_layers_pixelcnn=12, fmaps_pixelcnn=32, num_embeddings=self.num_embeddings, code_size=self.code_size)
+        self.loss_pixelcnn = self.pixelcnn["loss_pixelcnn"]
+        self.sampled_pixelcnn_train = self.pixelcnn["sampled_pixelcnn"]
+
+        self.trainer_pixelcnn = tf.train.RMSPropOptimizer(learning_rate=learning_rate_pixelcnn)
+        gradients_pixelcnn = self.trainer_pixelcnn.compute_gradients(self.loss_pixelcnn)
+        clipped_gradients_pixelcnn = map(
+            lambda gv: gv if gv[0] is None else [tf.clip_by_value(gv[0], -grad_clip_pixelcnn, grad_clip_pixelcnn),
+                                                 gv[1]], gradients_pixelcnn)
+        # clipped_gradients_pixelcnn = [(tf.clip_by_value(_[0], -grad_clip_pixelcnn, grad_clip_pixelcnn), _[1]) for _ in gradients_pixelcnn]
+        self.optimizer_pixelcnn = self.trainer_pixelcnn.apply_gradients(clipped_gradients_pixelcnn)
+
+
+
+
+
+
+        # TODO: add summaries
+        # summary and writer for tensorboard visulization
+        tf.summary.image("Reconstructed image", self.reconstructed)
+        tf.summary.image("Input image", self.input_image)
+        tf.summary.scalar("SSE",sse_loss)
+        tf.summary.scalar("Total loss", self.total_loss)
+
+        self.merged_summary = tf.summary.merge_all()
+        self.init = tf.global_variables_initializer()
+
+        self.logdir = './' + self.model_name  # if not exist create logdir
+        self.model_dir = self.logdir + 'final_model'
+
+
+        print("Completed creating the model")
+
+    def inference_net(self):
+        input_image = tf.keras.layers.Input(self.image_shape)  # 224,224,1
+        net = tf.keras.layers.Conv2D(
+            filters=32, kernel_size=4, strides=(2, 2), activation='relu', padding='same')(input_image)  # 112,112,32
+        net = tf.keras.layers.BatchNormalization()(net)
+        net = tf.keras.layers.Conv2D(
+            filters=32, kernel_size=4, strides=(2, 2), activation='relu', padding='same')(net)  # 56,56,64
+        net = tf.keras.layers.BatchNormalization()(net)
+        net = tf.keras.layers.Conv2D(
+            filters=32, kernel_size=3, strides=(2, 2), activation='relu', padding='same')(net)  # 56,56,64
+        net = tf.keras.layers.BatchNormalization()(net)
+        net = tf.keras.layers.Conv2D(
+            filters=self.latent_dim, kernel_size=1, strides=(1, 1), activation='relu')(net) # w/4,h/4,latent_dim
+        net = tf.keras.Model(inputs=input_image, outputs=net)
+
+        #residual connections not implemented as per the paper
+        return net
+
+    def generative_net(self):
+        latent_input = tf.keras.layers.Input((self.image_dim/4,self.image_dim/4,self.latent_dim))
+        net = tf.keras.layers.Conv2DTranspose(
+            filters=256,
+            kernel_size=3,
+            strides=(2, 2),
+            padding="same",
+            activation=self.activation)(latent_input)
+        net = tf.keras.layers.BatchNormalization()(net)
+        net = tf.keras.layers.Conv2DTranspose(
+            filters=128,
+            kernel_size=3,
+            strides=(2, 2),
+            padding="same",
+            activation=self.activation)(net)
+        net = tf.keras.layers.BatchNormalization()(net)
+        net = tf.keras.layers.Conv2DTranspose(
+            filters=64,
+            kernel_size=3,
+            strides=(2, 2),
+            padding="same",
+            activation=self.activation)(net)
+        net = tf.keras.layers.BatchNormalization()(net)
+        # No activation
+        net = tf.keras.layers.Conv2DTranspose(
+            filters=self.channels, kernel_size=1, strides=(1, 1), padding="SAME", activation=None)(net)
+        upsampling_net = tf.keras.Model(inputs=latent_input, outputs=net)
+        return upsampling_net
+
+
+    def train(self):
+        with tf.device('/gpu:0'):
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+
+                learning_rate=1e-3
+                counter = 0
+
+
+                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                self.sess.run(self.init)
+
+                # so can see improvement fix z_samples
+                z_samples = np.random.uniform(-1, 1, size=(self.BATCH_SIZE, self.latent_dim)).astype(np.float32)
+
+                for epoch in range(0, self.num_epochs):
+
+                    print("************************ epoch:" + str(epoch) + "*****************")
+
+                    filenames = list(pathlib.Path(self.training_datadir).iterdir())
+                    np.random.shuffle(filenames)
+                    print("Number training data " + str(len(filenames)))
+                    np.random.shuffle(filenames)
+                    for file in filenames:
+
+                        centre_fraction, acceleration = get_random_accelerations(high=5)
+                        # training_images: fully sampled MRI images
+                        # training labels: , obtained using various mask functions, here we obtain using center_fraction =[], acceleration=[]
+                        training_images, training_labels = get_training_pair_images_vae(file, centre_fraction, acceleration)
+                        [batch_length, x, y, z] = training_images.shape
+
+                        for idx in range(0, batch_length, self.BATCH_SIZE):
+
+                            batch_images = training_images[idx:idx + self.BATCH_SIZE, :, :]
+                            batch_labels = training_labels[idx:idx + self.BATCH_SIZE, :, :]
+
+                            feed_dict = {self.input_image_1: batch_images,
+                                         self.learning_rate: learning_rate}
+
+                            summary, reconstructed_images, opt, loss = self.sess.run([self.merged_summary, self.reconstructed, self.Optimizer, self.total_loss],
+                                feed_dict=feed_dict)
+
+
+
+
+                            #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
+
+
+                            elbo = -loss
+
+
+                            counter += 1
+
+                            if (counter % 5 == 0):
+                                self.train_writer.add_summary(summary)
+
+
+
+                        print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo))
+
+
+                print("Training completed .... Saving model")
+                # self.save_model(self.model_name)
+                print("All completed good bye")
+
+    def sample(self):
+        with tf.device('/gpu:0'):
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                self.sess.run(self.init)
+                # so can see improvement fix z_samples
+                z_samples = np.random.uniform(-1, 1, size=(self.batch_size, self.latent_dim)).astype(np.float32)
+                sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
+
+                return sampled_image
+
+
+    def train_pixelCNN(self):
+
+        #TODO: add the other stuff here
+
+        feed_dict={self.input_image_1: batch_input}
+
+        pixelcnn_training_input=sess.run(self.pixelCNN_train_input, feed_dict)
+
+        feed_dict={self.input_image_1: batch_input,  self.pixel_CNN: pixelcnn_training_input}
+
+        pixelcnn_training_input = sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
+
+
+
+     def sample(self):
+         #add the same code here ...
+
+
+if __name__ == '__main__':
+
+    model=VQ_VAE1()
+    #model.train()
