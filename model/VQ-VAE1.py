@@ -16,6 +16,8 @@ grad_clip_pixelcnn=1
 learning_rate_pixelcnn= 1e-3
 learning_rate=1e-4
 
+
+
 class VQ_VAE1(tf.keras.Model):
     def __init__(self):
 
@@ -23,7 +25,6 @@ class VQ_VAE1(tf.keras.Model):
 
         #TODO: add config parser
         #self.initizler = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.05, seed=None)
-
         self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
 
         self.BATCH_SIZE = 10
@@ -51,6 +52,8 @@ class VQ_VAE1(tf.keras.Model):
 
         #pixelCNN inputs
         self.pixelCNN_input=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size))
+        self.pixelCNN_samples=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size))
+
 
 
         self.learning_rate = tf.placeholder(tf.float32, [], name='learning_rate')
@@ -76,7 +79,6 @@ class VQ_VAE1(tf.keras.Model):
         vq_recons=vector_quantizer(z_e,self.latent_dim, self.num_embeddings, self.commitment_cost, only_lookup=True,inputs_indices=pixel_cnn_output)
         self.reconstruction=tf.sigmoid(self.decoder(vq_recons['quantized']))
 
-
         #pixel CNN
 
         #inputs
@@ -94,10 +96,8 @@ class VQ_VAE1(tf.keras.Model):
         # clipped_gradients_pixelcnn = [(tf.clip_by_value(_[0], -grad_clip_pixelcnn, grad_clip_pixelcnn), _[1]) for _ in gradients_pixelcnn]
         self.optimizer_pixelcnn = self.trainer_pixelcnn.apply_gradients(clipped_gradients_pixelcnn)
 
-
-
-
-
+        self.vq_output_pixelcnn = vq.vector_quantizer(z, embedding_dim, num_embeddings, commitment_cost, only_lookup=True, inputs_indices=self.pixelCNN_samples)
+        self.x_recon_pixelcnn = vqvae_nets.decoder(vq_output_pixelcnn["quantized"], num_hiddens, num_residual_layers, num_residual_hiddens, image_size, num_channel)
 
         # TODO: add summaries
         # summary and writer for tensorboard visulization
@@ -204,11 +204,7 @@ class VQ_VAE1(tf.keras.Model):
                             summary, reconstructed_images, opt, loss = self.sess.run([self.merged_summary, self.reconstructed, self.Optimizer, self.total_loss],
                                 feed_dict=feed_dict)
 
-
-
-
                             #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
-
 
                             elbo = -loss
 
@@ -244,17 +240,39 @@ class VQ_VAE1(tf.keras.Model):
         #TODO: add the other stuff here
 
         feed_dict={self.input_image_1: batch_input}
-
         pixelcnn_training_input=sess.run(self.pixelCNN_train_input, feed_dict)
-
         feed_dict={self.input_image_1: batch_input,  self.pixel_CNN: pixelcnn_training_input}
-
         pixelcnn_training_input = sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
 
+    def reconstruct_withPixelCNN(self, sess, x ):
+
+        #generate the prior's first
+        samples = self.sample_withPixelCNN(sess, self.image_dim, self.image_dim)
+
+        #pass it to reconstructure the recon imageS
+        feed_dict = {self.input_image_1: x, self.sampled_code_pixelcnn: samples}
+        x_recon_pixelcnn_res = sess.run(self.x_recon_pixelcnn, feed_dict=feed_dict)
+
+        return x_recon_pixelcnn_res
+
+    def sample_withPixelCNN(self, sess, n_row, n_col):
+
+        samples = np.zeros(shape=(n_row*n_col, self.code_size, self.code_size), dtype=np.int32)
+        for j in range(code_size):
+            for k in range(code_size):
+                data_dict = {data_pixelcnn: samples}
+                next_sample = sess.run(self.sampled_pixelcnn_train, feed_dict=data_dict)
+                samples[:, j, k] = next_sample[:, j, k]
+        samples.astype(np.int32)
+
+        return samples
+        
 
 
-     def sample(self):
-         #add the same code here ...
+
+
+        return samples
+
 
 
 if __name__ == '__main__':
