@@ -271,9 +271,6 @@ class VQ_VAE1(tf.keras.Model):
 
 
 
-        return samples
-
-
 
 if __name__ == '__main__':
 
