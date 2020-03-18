@@ -68,7 +68,7 @@ class VQ_VAE1(tf.keras.Model):
         self.reconstruction=tf.sigmnoid(logits)
 
         # cal mse loss
-        sse_loss =  tf.reduce_sum(tf.square(self.input_image - self.reconsturtion))
+        sse_loss =  tf.reduce_sum(tf.square(self.input_image - self.reconstruction))
         self.total_loss = sse_loss + vq['loss']
         #self.list_gradients = tf.trainable_variables()
         self.Optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_loss)
