@@ -62,9 +62,9 @@ class VQ_VAE1(tf.keras.Model):
         self.encoder = self.inference_net()
         self.decoder = self.generative_net()  # note these are keras model
 
-        z_e = self.encoder(self.input_image)
+        self.z_e = self.encoder(self.input_image)
 
-        vq=vector_quantizer(z_e,self.latent_dim, self.num_embeddings, self.commitment_cost)
+        vq=vector_quantizer(self.z_e,self.latent_dim, self.num_embeddings, self.commitment_cost)
         z_q=vq['quantized']
         logits = self.decoder(z_q)
         logits = tf.sigmoid(logits)
@@ -75,9 +75,6 @@ class VQ_VAE1(tf.keras.Model):
         #self.list_gradients = tf.trainable_variables()
         self.Optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_loss)
 
-        #reconsturctions
-        vq_recons=vector_quantizer(z_e,self.latent_dim, self.num_embeddings, self.commitment_cost, only_lookup=True,inputs_indices=pixel_cnn_output)
-        self.reconstruction=tf.sigmoid(self.decoder(vq_recons['quantized']))
 
         #pixel CNN
 
@@ -96,8 +93,14 @@ class VQ_VAE1(tf.keras.Model):
         # clipped_gradients_pixelcnn = [(tf.clip_by_value(_[0], -grad_clip_pixelcnn, grad_clip_pixelcnn), _[1]) for _ in gradients_pixelcnn]
         self.optimizer_pixelcnn = self.trainer_pixelcnn.apply_gradients(clipped_gradients_pixelcnn)
 
-        self.vq_output_pixelcnn = vq.vector_quantizer(z, embedding_dim, num_embeddings, commitment_cost, only_lookup=True, inputs_indices=self.pixelCNN_samples)
-        self.x_recon_pixelcnn = vqvae_nets.decoder(vq_output_pixelcnn["quantized"], num_hiddens, num_residual_layers, num_residual_hiddens, image_size, num_channel)
+        #reconsturctions
+        vq_recons=vector_quantizer(self.z_e ,self.latent_dim, self.num_embeddings, self.commitment_cost, only_lookup=True,inputs_indices=pixel_cnn_output)
+        self.reconstruction=tf.sigmoid(self.decoder(vq_recons['quantized']))
+
+        #sampling
+        self.vq_output_pixelcnn = vq.vector_quantizer(self.z_samples, embedding_dim, self.num_embeddings, commitment_cost, only_lookup=True, inputs_indices=self.pixelCNN_samples)
+        #self.x_recon_pixelcnn = tf.sigmoid(self.decoder(self.vq_output_pixelcnn["quantized"], num_hiddens, num_residual_layers, num_residual_hiddens, image_size, num_channel)
+        #decoder may be different
 
         # TODO: add summaries
         # summary and writer for tensorboard visulization
@@ -246,21 +249,50 @@ class VQ_VAE1(tf.keras.Model):
 
     def reconstruct_withPixelCNN(self, sess, x ):
 
-        #generate the prior's first
-        samples = self.sample_withPixelCNN(sess, self.image_dim, self.image_dim)
+        #TODO: recheck the flow here
+        with tf.device('/gpu:0'):
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                self.sess.run(self.init)
+                #generate the prior's first
+                samples = self.generate_PixelCNN_samples(self.sess, self.image_dim, self.image_dim)
 
-        #pass it to reconstructure the recon imageS
-        feed_dict = {self.input_image_1: x, self.sampled_code_pixelcnn: samples}
-        x_recon_pixelcnn_res = sess.run(self.x_recon_pixelcnn, feed_dict=feed_dict)
+                #pass x encoder to z and then z and with pixelCNN sample to recon image
+                feed_dict = {self.input_image: x}
+                z=self.sess.run(self.z_e, feed_dict=feed_dict)
 
-        return x_recon_pixelcnn_res
+                #pass it to reconstructure the recon imageS
+                feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}      # feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}
+                x_recon_pixelcnn_res = sess.run(self.x_recon_pixelcnn, feed_dict=feed_dict)
 
-    def sample_withPixelCNN(self, sess, n_row, n_col):
+                return x_recon_pixelcnn_res
+
+    def images_samples_withPixelCNN(self):
+
+        with tf.device('/gpu:0'):
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                self.sess.run(self.init)
+                #generate the prior's first
+                samples = self.generate_PixelCNN_samples(sess, self.image_dim, self.image_dim)
+
+                #pass x encoder to z and then z and with pixelCNN sample to recon image
+                z= np.random.uniform(-1, 1, size=(self.batch_size, self.latent_dim)).astype(np.float32)
+
+              #pass it to reconstructure the recon via decorder with pixelCNN prior
+                feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}
+                x_recon_pixelcnn_res = sess.run(self.x_recon_pixelcnn, feed_dict=feed_dict)
+
+        return x_recon_pixelcnn_res    
+
+
+
+    def generate_PixelCNN_samples(self, sess, n_row, n_col):
 
         samples = np.zeros(shape=(n_row*n_col, self.code_size, self.code_size), dtype=np.int32)
-        for j in range(code_size):
-            for k in range(code_size):
-                data_dict = {data_pixelcnn: samples}
+        for j in range(self.code_size):
+            for k in range(self.code_size):
+                data_dict = {self.pixelCNN_samples: samples}
                 next_sample = sess.run(self.sampled_pixelcnn_train, feed_dict=data_dict)
                 samples[:, j, k] = next_sample[:, j, k]
         samples.astype(np.int32)
