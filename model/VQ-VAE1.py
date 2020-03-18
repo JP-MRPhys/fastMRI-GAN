@@ -55,31 +55,29 @@ class VQ_VAE1(tf.keras.Model):
         self.pixelCNN_samples=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size))
 
 
-
         self.learning_rate = tf.placeholder(tf.float32, [], name='learning_rate')
-
 
         self.encoder = self.inference_net()
         self.decoder = self.generative_net()  # note these are keras model
 
         self.z_e = self.encoder(self.input_image)
-
         vq=vector_quantizer(self.z_e,self.latent_dim, self.num_embeddings, self.commitment_cost)
         z_q=vq['quantized']
         logits = self.decoder(z_q)
         logits = tf.sigmoid(logits)
+        self.reconstruction=tf.sigmnoid(logits)
 
         # cal mse loss
-        sse_loss =  tf.reduce_sum(tf.square(self.input_image - logits))
+        sse_loss =  tf.reduce_sum(tf.square(self.input_image - self.reconsturtion))
         self.total_loss = sse_loss + vq['loss']
         #self.list_gradients = tf.trainable_variables()
         self.Optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_loss)
 
 
-        #pixel CNN
+        #pixelCNN
 
         #inputs
-        self.pixelCNN_train_input=vq['encoding_indices']  # place  holder for separate training of pixelCNN
+        self.pixelCNN_train_input=vq['encoding_indices']  # placeholder for separate training of pixelCNN
 
         self.pixelCNN=pixelcnn(self.pixelCNN_input, num_layers_pixelcnn=12, fmaps_pixelcnn=32, num_embeddings=self.num_embeddings, code_size=self.code_size)
         self.loss_pixelcnn = self.pixelcnn["loss_pixelcnn"]
@@ -94,11 +92,11 @@ class VQ_VAE1(tf.keras.Model):
         self.optimizer_pixelcnn = self.trainer_pixelcnn.apply_gradients(clipped_gradients_pixelcnn)
 
         #reconsturctions
-        vq_recons=vector_quantizer(self.z_e ,self.latent_dim, self.num_embeddings, self.commitment_cost, only_lookup=True,inputs_indices=pixel_cnn_output)
-        self.reconstruction=tf.sigmoid(self.decoder(vq_recons['quantized']))
+        vq_recons=vector_quantizer(self.z_samples ,self.latent_dim, self.num_embeddings, self.commitment_cost, only_lookup=True,inputs_indices=self.pixelCNN_samples)
+        self.recon_pixelcnn=tf.sigmoid(self.decoder(vq_recons['quantized']))
 
         #sampling
-        self.vq_output_pixelcnn = vq.vector_quantizer(self.z_samples, embedding_dim, self.num_embeddings, commitment_cost, only_lookup=True, inputs_indices=self.pixelCNN_samples)
+        #self.vq_output_pixelcnn = vq.vector_quantizer(self.z_samples, embedding_dim, self.num_embeddings, commitment_cost, only_lookup=True, inputs_indices=self.pixelCNN_samples)
         #self.x_recon_pixelcnn = tf.sigmoid(self.decoder(self.vq_output_pixelcnn["quantized"], num_hiddens, num_residual_layers, num_residual_hiddens, image_size, num_channel)
         #decoder may be different
 
@@ -173,7 +171,6 @@ class VQ_VAE1(tf.keras.Model):
                 learning_rate=1e-3
                 counter = 0
 
-
                 self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
                 self.sess.run(self.init)
 
@@ -204,22 +201,24 @@ class VQ_VAE1(tf.keras.Model):
                             feed_dict = {self.input_image_1: batch_images,
                                          self.learning_rate: learning_rate}
 
-                            summary, reconstructed_images, opt, loss = self.sess.run([self.merged_summary, self.reconstructed, self.Optimizer, self.total_loss],
+                            #train VQ-VAE
+                            summary, reconstructed_images, opt, loss, pixelcnn_training_input = self.sess.run([self.merged_summary, self.reconstruction, self.Optimizer, self.total_loss, self.pixelCNN_train_input],
                                 feed_dict=feed_dict)
 
-                            #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
+                            #train PixelCNN
+                            feed_dict={self.input_image_1: batch_input,  self.pixelCNN_input: pixelcnn_training_input}
+                            pixelcnn_loss, _= sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
+                                
 
+                            #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
                             elbo = -loss
 
-
                             counter += 1
-
                             if (counter % 5 == 0):
                                 self.train_writer.add_summary(summary)
 
-
-
-                        print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo))
+                        print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo) + "VQ-VAE loss" + str(loss))
+                        print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "Pixel CNN Loss: " + str(pixelcnn_loss))
 
 
                 print("Training completed .... Saving model")
@@ -234,18 +233,58 @@ class VQ_VAE1(tf.keras.Model):
                 # so can see improvement fix z_samples
                 z_samples = np.random.uniform(-1, 1, size=(self.batch_size, self.latent_dim)).astype(np.float32)
                 sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
-
                 return sampled_image
 
 
     def train_pixelCNN(self):
+            #Not tested just if you want a separate loop but will be 2X longer
+            with tf.device('/gpu:0'):
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
-        #TODO: add the other stuff here
+                learning_rate=1e-3
+                counter = 0
 
-        feed_dict={self.input_image_1: batch_input}
-        pixelcnn_training_input=sess.run(self.pixelCNN_train_input, feed_dict)
-        feed_dict={self.input_image_1: batch_input,  self.pixel_CNN: pixelcnn_training_input}
-        pixelcnn_training_input = sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
+
+                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                self.sess.run(self.init)
+
+                for epoch in range(0, self.num_epochs):
+
+                    print("************************ epoch:" + str(epoch) + "*****************")
+
+                    filenames = list(pathlib.Path(self.training_datadir).iterdir())
+                    np.random.shuffle(filenames)
+                    print("Number training data " + str(len(filenames)))
+                    np.random.shuffle(filenames)
+                    for file in filenames:
+
+                        centre_fraction, acceleration = get_random_accelerations(high=5)
+                        # training_images: fully sampled MRI images
+                        # training labels: , obtained using various mask functions, here we obtain using center_fraction =[], acceleration=[]
+                        training_images, training_labels = get_training_pair_images_vae(file, centre_fraction, acceleration)
+                        [batch_length, x, y, z] = training_images.shape
+
+                        for idx in range(0, batch_length, self.BATCH_SIZE):
+
+                            batch_images = training_images[idx:idx + self.BATCH_SIZE, :, :]
+                            batch_labels = training_labels[idx:idx + self.BATCH_SIZE, :, :]
+
+                            feed_dict = {self.input_image_1: batch_images,
+                                         self.learning_rate: learning_rate}
+
+                            pixelcnn_training_input=sess.run(self.pixelCNN_train_input, feed_dict)
+                            feed_dict={self.input_image_1: batch_input,  self.pixelCNN_input: pixelcnn_training_input}
+                            pixelcnn_loss, _= sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
+
+                            counter += 1
+
+                        print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "Pixel CNN Loss: " + str(pixelcnn_loss))
+
+
+                print("Training completed .... Saving model")
+                # self.save_model(self.model_name)
+                print("All completed good bye")    
+
 
     def reconstruct_withPixelCNN(self, sess, x ):
 
@@ -261,11 +300,11 @@ class VQ_VAE1(tf.keras.Model):
                 feed_dict = {self.input_image: x}
                 z=self.sess.run(self.z_e, feed_dict=feed_dict)
 
-                #pass it to reconstructure the recon imageS
-                feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}      # feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}
-                x_recon_pixelcnn_res = sess.run(self.x_recon_pixelcnn, feed_dict=feed_dict)
+                #pass it to reconstructure the recon imageS TODO: check whether follow is correct i.e. is passing through Vector quantizer correctly
+                feed_dict = {self.z_samples: z, self.pixelCNN_samples: samples}      # feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}
+                recon_pixelcnn_res = sess.run(self.recon_pixelcnn, feed_dict=feed_dict)
 
-                return x_recon_pixelcnn_res
+                return recon_pixelcnn_res
 
     def images_samples_withPixelCNN(self):
 
@@ -274,16 +313,16 @@ class VQ_VAE1(tf.keras.Model):
                 self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
                 self.sess.run(self.init)
                 #generate the prior's first
-                samples = self.generate_PixelCNN_samples(sess, self.image_dim, self.image_dim)
+                samples = self.generate_PixelCNN_samples(self.sess, self.image_dim, self.image_dim)
 
                 #pass x encoder to z and then z and with pixelCNN sample to recon image
-                z= np.random.uniform(-1, 1, size=(self.batch_size, self.latent_dim)).astype(np.float32)
+                z= np.random.uniform(-1, 1, size=(self.batch_size, self.latent_dim)).astype(np.float32) #- this should be z_q shape 
 
               #pass it to reconstructure the recon via decorder with pixelCNN prior
-                feed_dict = {self.z_samples: z, self.sampled_code_pixelcnn: samples}
-                x_recon_pixelcnn_res = sess.run(self.x_recon_pixelcnn, feed_dict=feed_dict)
+                feed_dict = {self.z_samples: z, self.pixelCNN_samples: samples}
+                recon_pixelcnn_res = sess.run(self.recon_pixelcnn, feed_dict=feed_dict)
 
-        return x_recon_pixelcnn_res    
+        return recon_pixelcnn_res    
 
 
 
