@@ -7,6 +7,7 @@ def vector_quantizer(inputs, embedding_dim, num_embeddings, commitment_cost, ran
     Note:
         shape_of_inputs=[batch_size, ?, ?, embedding_dim]
     '''
+
     # Assert last dimension of inputs is same as embedding_dim
     assert_dim = tf.assert_equal(tf.shape(inputs)[-1], embedding_dim)
     with tf.control_dependencies([assert_dim]):
@@ -22,7 +23,7 @@ def vector_quantizer(inputs, embedding_dim, num_embeddings, commitment_cost, ran
             emb_vq ** 2, 0, keepdims=True)
         encoding_indices = tf.argmax(-distances, 1)
         encodings = tf.one_hot(encoding_indices, num_embeddings)
-        encoding_indices = tf.reshape(encoding_indices, tf.shape(inputs)[:-1])  # shape=[batch_size, ?, ?]
+        encoding_indices = tf.reshape(encoding_indices, tf.shape(inputs)[:-1])  # shape=[batch_size, code_size, code_size]
     else:
         inputs_indices = tf.cast(inputs_indices, tf.int32)
         encoding_indices = inputs_indices
