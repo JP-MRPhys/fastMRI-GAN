@@ -30,7 +30,7 @@ class VQ_VAE1(tf.keras.Model):
         self.BATCH_SIZE = 10
         self.num_epochs = 300
         self.learning_rate = 1e-3
-        self.model_name="CVAE"
+        self.model_name="VQVAE1"
 
         self.image_dim = 128
         self.channels = 1
@@ -95,10 +95,10 @@ class VQ_VAE1(tf.keras.Model):
 
         # TODO: add summaries
         # summary and writer for tensorboard visulization
-        #tf.summary.image("Reconstructed image", self.recon_pixelCNN)
-        #tf.summary.image("Input image", self.input_image)
-        #tf.summary.scalar("SSE",sse_loss)
-        #tf.summary.scalar("Total loss", self.total_loss)
+        tf.summary.image("Reconstructed image", self.reconstruction)
+        tf.summary.image("Input image", self.input_image)
+        tf.summary.scalar("SSE",sse_loss)
+        tf.summary.scalar("Total loss", self.total_loss)
 
         self.merged_summary = tf.summary.merge_all()
         self.init = tf.global_variables_initializer()
@@ -166,9 +166,6 @@ class VQ_VAE1(tf.keras.Model):
                 self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
                 self.sess.run(self.init)
 
-                # so can see improvement fix z_samples
-                z_samples = np.random.uniform(-1, 1, size=(self.BATCH_SIZE, self.latent_dim)).astype(np.float32)
-
                 for epoch in range(0, self.num_epochs):
 
                     print("************************ epoch:" + str(epoch) + "*****************")
@@ -179,9 +176,6 @@ class VQ_VAE1(tf.keras.Model):
                     for file in filenames:
 
                         centre_fraction, acceleration = get_random_accelerations(high=5)
-
-                        # training_images: fully sampled MRI images
-                        # training labels: , obtained using various mask functions, here we obtain using center_fraction =[], acceleration=[]
 
                         training_images, training_labels = get_training_pair_images_vae(file, centre_fraction, acceleration)
                         [batch_length, x, y, z] = training_images.shape
@@ -203,7 +197,6 @@ class VQ_VAE1(tf.keras.Model):
                             pixelcnn_loss, _= self.sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
 
                             #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
-                            elbo = -loss
 
                             counter += 1
                             if (counter % 5 == 0):
