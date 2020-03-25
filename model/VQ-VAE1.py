@@ -35,7 +35,7 @@ class VQ_VAE1(tf.keras.Model):
         self.image_dim = 128
         self.channels = 1
         self.latent_dim = 64    #embedding dimensions D
-        self.num_embeddings=8   # k: Categorical
+        self.num_embeddings=8   # k: Categorical, increase this is recommeded compared to the bottle neck layer
         self.code_size= 16 #to be set directly from z_e
 
         self.commitment_cost=0.25
