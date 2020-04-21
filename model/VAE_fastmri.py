@@ -69,6 +69,10 @@ class CVAE(tf.keras.Model):
 
         self.merged_summary = tf.summary.merge_all()
         self.init = tf.global_variables_initializer()
+        self.saver = tf.train.Saver()
+        self.logdir = './' + self.model_name  # if not exist create logdir
+        self.model_dir = self.logdir + 'final_model'
+
 
 
         self.logdir = './' + self.model_name  # if not exist create logdir
@@ -211,9 +215,6 @@ class CVAE(tf.keras.Model):
 
                 return sampled_image
 
-    def save_model(self):
-
-        self.save()
 
 
 
