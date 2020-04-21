@@ -222,7 +222,7 @@ class CVAE(tf.keras.Model):
 
                 return sampled_image
 
-    def save_model(self, modelname):
+    def save_model(self, model_name):
 
         print ("Saving the model after training")
         if (os.path.exists(self.model_dir)):
