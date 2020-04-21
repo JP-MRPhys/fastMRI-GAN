@@ -69,9 +69,6 @@ class PixelVAE(tf.keras.Model):
         sse_loss = self.pixel_cnn_loss #0.5 * tf.reduce_sum(tf.square(self.input_image - logits))
         self.total_loss = tf.reduce_mean(kl_loss + sse_loss) / self.BATCH_SIZE
 
-
-
-
         self.list_gradients = tf.trainable_variables()#self.encoder.trainable_variables + self.decoder.trainable_variables
         self.Optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_loss, var_list=self.list_gradients)
 
@@ -206,7 +203,7 @@ class PixelVAE(tf.keras.Model):
                         print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo))
 
                 print("Training completed .... Saving model")
-                # self.save_model(self.model_name)
+                self.save_model(self.model_name)
                 print("All completed good bye")
 
     def sample(self):
@@ -231,6 +228,10 @@ class PixelVAE(tf.keras.Model):
                            sampled_image[:,i,j,k]=sampled[:,i,j,k]
 
         return sampled_image
+
+
+
+
 
 
 if __name__ == '__main__':

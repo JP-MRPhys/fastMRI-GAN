@@ -211,6 +211,11 @@ class CVAE(tf.keras.Model):
 
                 return sampled_image
 
+    def save_model(self):
+
+        self.save()
+
+
 
 if __name__ == '__main__':
 
