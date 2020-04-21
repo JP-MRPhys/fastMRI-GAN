@@ -1,6 +1,9 @@
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf  #NOTE: To train on tensorflow version 2.0
+tf.disable_v2_behavior()
 
 import h5py
+import os
 import numpy as np
 import pathlib
 from utils.subsample import MaskFunc
@@ -78,6 +81,7 @@ class CVAE(tf.keras.Model):
         self.logdir = './' + self.model_name  # if not exist create logdir
         self.model_dir = self.logdir + 'final_model'
 
+        self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
 
         print("Completed creating the model")
 
@@ -144,7 +148,10 @@ class CVAE(tf.keras.Model):
         return eps * tf.sqrt(tf.exp(logvar)) + mean
 
     def train(self):
-        with tf.device('/gpu:0'):
+
+        for d in self.gpu_list:
+
+         with tf.device(d):
             with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
                 learning_rate=1e-3
@@ -215,7 +222,28 @@ class CVAE(tf.keras.Model):
 
                 return sampled_image
 
+    def save_model(self, modelname):
 
+        print ("Saving the model after training")
+        if (os.path.exists(self.model_dir)):
+            os.makedirs(self.model_dir)
+
+        self.saver.save(self.sess, os.path.join(self.model_dir, self.model_name))
+        print("Completed saving the model")
+
+
+
+    def load_model(self, model_name):
+
+        print ("Checking for the model")
+
+        with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as new_sess:
+
+            saver =tf.train.import_meta_graph((model_name + '.meta'))
+            #saver.restore(self.sess, self.model_dir)
+            saver.restore(new_sess,tf.train.latest_checkpoint("./"))
+            print ("Session restored")
+            return new_sess
 
 
 if __name__ == '__main__':
