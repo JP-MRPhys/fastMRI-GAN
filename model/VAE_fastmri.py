@@ -201,7 +201,7 @@ class CVAE(tf.keras.Model):
 
 
                 print("Training completed .... Saving model")
-                # self.save_model(self.model_name)
+                self.save_model(self.model_name)
                 print("All completed good bye")
 
     def sample(self):
