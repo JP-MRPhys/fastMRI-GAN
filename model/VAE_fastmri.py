@@ -10,6 +10,7 @@ from utils.subsample import MaskFunc
 import utils.transforms as T
 #from matplotlib import pyplot as plt
 from model.fastmri_data import get_training_pair_images_vae, get_random_accelerations
+import math
 
 class CVAE(tf.keras.Model):
     def __init__(self):
@@ -20,6 +21,7 @@ class CVAE(tf.keras.Model):
         #self.initizler = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.05, seed=None)
 
         self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
+        self.training_datadir = '/jmain01/home/JAD029/txl04/jxp48-txl04/data/fastmri_singlecoil/singlecoil_train/'
 
         self.BATCH_SIZE = 10
         self.num_epochs = 300
@@ -81,7 +83,8 @@ class CVAE(tf.keras.Model):
         self.logdir = './' + self.model_name  # if not exist create logdir
         self.model_dir = self.logdir + 'final_model'
 
-        self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
+        #self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
+        self.gpu_list = ['/gpu:0']
 
         print("Completed creating the model")
 
@@ -154,7 +157,7 @@ class CVAE(tf.keras.Model):
          with tf.device(d):
             with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
-                learning_rate=1e-3
+                #learning_rate=1e-3
                 counter = 0
 
 
@@ -167,6 +170,8 @@ class CVAE(tf.keras.Model):
                 for epoch in range(0, self.num_epochs):
 
                     print("************************ epoch:" + str(epoch) + "*****************")
+
+                    learning_rate=self.step_decay(epoch)
 
                     filenames = list(pathlib.Path(self.training_datadir).iterdir())
                     np.random.shuffle(filenames)
@@ -185,13 +190,15 @@ class CVAE(tf.keras.Model):
                             batch_images = training_images[idx:idx + self.BATCH_SIZE, :, :]
                             batch_labels = training_labels[idx:idx + self.BATCH_SIZE, :, :]
 
+
+
                             feed_dict = {self.input_image_1: batch_images,
                                          self.learning_rate: learning_rate}
 
                             summary, reconstructed_images, opt, loss = self.sess.run( [self.merged_summary, self.reconstructed, self.Optimizer, self.total_loss],
                                 feed_dict=feed_dict)
 
-                            sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
+                            #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
 
 
                             elbo = -loss
@@ -199,12 +206,14 @@ class CVAE(tf.keras.Model):
 
                             counter += 1
 
-                            if (counter % 5 == 0):
+                        if (counter % 50 == 0):
                                 self.train_writer.add_summary(summary)
 
 
-
                         print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo))
+
+                    if (epoch % 10 == 0):
+                            self.save_model(self.model_name)
 
 
                 print("Training completed .... Saving model")
@@ -244,6 +253,13 @@ class CVAE(tf.keras.Model):
             saver.restore(new_sess,tf.train.latest_checkpoint("./"))
             print ("Session restored")
             return new_sess
+
+    def step_decay(self, epoch):
+        initial_lrate=0.01
+        drop = 0.5
+        epochs_drop=4
+        lrate= initial_lrate* math.pow(drop, math.floor((1+epoch)/epochs_drop))
+        return lrate
 
 
 if __name__ == '__main__':
