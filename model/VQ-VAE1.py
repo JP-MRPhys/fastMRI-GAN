@@ -1,10 +1,7 @@
 import tensorflow as tf
 
-import h5py
 import numpy as np
 import pathlib
-from utils.subsample import MaskFunc
-import utils.transforms as T
 #from matplotlib import pyplot as plt
 from model.fastmri_data import get_training_pair_images_vae, get_random_accelerations
 from model.layers.vector_quantizier import vector_quantizer

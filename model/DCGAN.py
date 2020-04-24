@@ -1,9 +1,8 @@
-from tensorflow.contrib.keras import layers
 import  tensorflow as tf
 import numpy as np
 
 
-from utils.Layers import linear, upsampling_2D
+from model.utils.Layers import linear, upsampling_2D
 
 
 def generator(z):

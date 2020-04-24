@@ -1,9 +1,8 @@
 import h5py
-import numpy as np
 import pathlib
-from utils.subsample import MaskFunc
-from utils.Layers import *
-import utils.transforms as T
+from model.utils.subsample import MaskFunc
+from model.utils.Layers import *
+import model.utils.transforms as T
 import tensorflow as tf
 
 

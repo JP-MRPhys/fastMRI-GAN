@@ -34,7 +34,7 @@ def fft_abs_for_map_fn(x):
 import pathlib
 #import nibabel as nib
 import random
-from utils.Layers import *
+from model.utils.Layers import *
 from model.fastmri_data import  get_random_accelerations, get_training_pair
 
 # Just disables the warning, doesn't enable AVX/FMA
