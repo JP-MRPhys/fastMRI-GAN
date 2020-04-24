@@ -201,8 +201,7 @@ class CVAE(tf.keras.Model):
 
 
                             #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
-                            print(
-                                "Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
+                            print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
 
 
 
