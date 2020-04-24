@@ -11,6 +11,10 @@ import pathlib
 #from matplotlib import pyplot as plt
 from fastmri_data import get_training_pair_images_vae, get_random_accelerations
 import math
+import logging
+LOG_FILENAME="VAE_TRAINING.LOG"
+logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
+
 
 class CVAE(tf.keras.Model):
     def __init__(self):
@@ -87,6 +91,7 @@ class CVAE(tf.keras.Model):
         self.gpu_list = ['/gpu:0']
 
         print("Completed creating the model")
+        logging.debug("Completed creating the model")
 
     def inference_net(self):
         input_image = tf.keras.layers.Input(self.image_shape)  # 224,224,1
@@ -170,6 +175,7 @@ class CVAE(tf.keras.Model):
                 for epoch in range(0, self.num_epochs):
 
                     print("************************ epoch:" + str(epoch) + "*****************")
+                    logging.debug("************************ epoch:" + str(epoch) + "*****************")
 
                     learning_rate=self.step_decay(epoch)
 
@@ -209,6 +215,8 @@ class CVAE(tf.keras.Model):
 
                         if (counter % 50 == 0):
                                 self.train_writer.add_summary(summary)
+                                logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
+
 
 
 
@@ -218,6 +226,7 @@ class CVAE(tf.keras.Model):
 
 
                 print("Training completed .... Saving model")
+                logging.debug(("Training completed .... Saving model"))
                 self.save_model(self.model_name)
                 print("All completed good bye")
 
@@ -240,6 +249,7 @@ class CVAE(tf.keras.Model):
 
         self.saver.save(self.sess, os.path.join(self.model_dir, self.model_name))
         print("Completed saving the model")
+        logging.debug("Completed saving the model")
 
 
 
