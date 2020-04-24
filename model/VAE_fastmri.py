@@ -155,7 +155,7 @@ class CVAE(tf.keras.Model):
         for d in self.gpu_list:
 
          with tf.device(d):
-            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+            with tf.Session(config=tf.ConfigProto(log_device_placement=False)) as self.sess:
 
                 #learning_rate=1e-3
                 counter = 0
@@ -191,12 +191,12 @@ class CVAE(tf.keras.Model):
                             batch_labels = training_labels[idx:idx + self.BATCH_SIZE, :, :]
 
 
-
                             feed_dict = {self.input_image_1: batch_images,
                                          self.learning_rate: learning_rate}
 
                             summary, reconstructed_images, opt, loss = self.sess.run( [self.merged_summary, self.reconstructed, self.Optimizer, self.total_loss],
                                 feed_dict=feed_dict)
+                            print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
 
                             #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
 
@@ -210,7 +210,7 @@ class CVAE(tf.keras.Model):
                                 self.train_writer.add_summary(summary)
 
 
-                        print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo))
+
 
                     if (epoch % 10 == 0):
                             self.save_model(self.model_name)
