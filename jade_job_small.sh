@@ -10,7 +10,7 @@
 #SBATCH --gres=gpu:1
 
 #Select a partition
-#SBATCH --partition=big
+#SBATCH --partition=devel
 
 # mail alert at start, end and abortion of execution
 #SBATCH --mail-type=ALL
@@ -20,4 +20,4 @@
 
 module load python3/anaconda
 source activate tensorflow2-gpu
-python tensorflowtest.py
+python ./model/VAE_fastmri.py
