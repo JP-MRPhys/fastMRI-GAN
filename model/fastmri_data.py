@@ -1,8 +1,8 @@
 import h5py
 import numpy as np
 import pathlib
-from model.utils.subsample import MaskFunc
-import model.utils.transforms as T
+from utils.subsample import MaskFunc
+import utils.transforms as T
 
 
 def get_training_pair(file, centre_fraction, acceleration):
