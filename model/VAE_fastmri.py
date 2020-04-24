@@ -197,11 +197,13 @@ class CVAE(tf.keras.Model):
                             summary, reconstructed_images, opt, loss = self.sess.run( [self.merged_summary, self.reconstructed, self.Optimizer, self.total_loss],
                                 feed_dict=feed_dict)
 
+                            elbo = -loss
+
+
                             #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
                             print(
                                 "Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
 
-                            elbo = -loss
 
 
                             counter += 1
