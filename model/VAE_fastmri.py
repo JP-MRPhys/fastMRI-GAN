@@ -162,7 +162,7 @@ class CVAE(tf.keras.Model):
         for d in self.gpu_list:
 
          with tf.device(d):
-            with tf.Session(config=tf.ConfigProto(log_device_placement=False)) as self.sess:
+            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
                 #learning_rate=1e-3
                 counter = 0
