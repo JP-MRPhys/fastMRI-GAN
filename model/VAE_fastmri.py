@@ -228,7 +228,7 @@ class CVAE(tf.keras.Model):
 
                     if (epoch % 10 == 0):
                         logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
-                        
+
                         if math.isnan(elbo):
                             logging.debug("Epoch: " + str(epoch) + "stopping as elbo is nan")
                             break
