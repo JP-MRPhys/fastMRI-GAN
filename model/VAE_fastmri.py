@@ -207,6 +207,10 @@ class CVAE(tf.keras.Model):
 
                             elbo = -loss
 
+                            if math.isnan(elbo):
+                                logging.debug("Epoch: " + str(epoch) + "stopping as elbo is nan")
+                                break
+
 
                             #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
                             print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
@@ -216,7 +220,6 @@ class CVAE(tf.keras.Model):
                             counter += 1
 
                         if (counter % 50 == 0):
-                                self.train_writer.add_summary(summary)
                                 logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
 
 
@@ -224,7 +227,13 @@ class CVAE(tf.keras.Model):
 
 
                     if (epoch % 10 == 0):
-                            self.save_model(self.model_name)
+                        logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
+                        
+                        if math.isnan(elbo):
+                            logging.debug("Epoch: " + str(epoch) + "stopping as elbo is nan")
+                            break
+
+                        self.save_model(self.model_name)
 
 
                 print("Training completed .... Saving model")
@@ -270,7 +279,7 @@ class CVAE(tf.keras.Model):
             return new_sess
 
     def step_decay(self, epoch):
-        initial_lrate=0.01
+        initial_lrate=0.0001
         drop = 0.5
         epochs_drop=4
         lrate= initial_lrate* math.pow(drop, math.floor((1+epoch)/epochs_drop))
