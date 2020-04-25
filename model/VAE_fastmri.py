@@ -12,6 +12,8 @@ import pathlib
 from fastmri_data import get_training_pair_images_vae, get_random_accelerations
 import math
 import logging
+import shutil
+
 LOG_FILENAME="VAE_TRAINING.LOG"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
@@ -227,7 +229,7 @@ class CVAE(tf.keras.Model):
 
                 print("Training completed .... Saving model")
                 logging.debug(("Training completed .... Saving model"))
-                self.save_model(self.model_name)
+                self.save_model(self.model_name + "_final")
                 print("All completed good bye")
 
     def sample(self):
@@ -245,7 +247,9 @@ class CVAE(tf.keras.Model):
 
         print ("Saving the model after training")
         if (os.path.exists(self.model_dir)):
+            shutil.rmtree(self.model_dir, ignore_errors=True)
             os.makedirs(self.model_dir)
+
 
         self.saver.save(self.sess, os.path.join(self.model_dir, self.model_name))
         print("Completed saving the model")
