@@ -235,6 +235,9 @@ class CVAE(tf.keras.Model):
 
                         self.save_model(self.model_name)
 
+                    if (epoch % 20 == 0):
+                        self.train_writer.add_summary(summary)
+
 
                 print("Training completed .... Saving model")
                 logging.debug(("Training completed .... Saving model"))
@@ -279,7 +282,7 @@ class CVAE(tf.keras.Model):
             return new_sess
 
     def step_decay(self, epoch):
-        initial_lrate=0.0001
+        initial_lrate=0.001
         drop = 0.5
         epochs_drop=4
         lrate= initial_lrate* math.pow(drop, math.floor((1+epoch)/epochs_drop))
