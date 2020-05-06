@@ -30,7 +30,7 @@ class CVAE(tf.keras.Model):
         self.training_datadir = '/jmain01/home/JAD029/txl04/jxp48-txl04/data/fastmri_singlecoil/singlecoil_train/'
 
         self.BATCH_SIZE = 16
-        self.num_epochs = 300
+        self.num_epochs = 150
         self.learning_rate = 1e-3
         self.model_name="CVAE"
 
@@ -88,8 +88,8 @@ class CVAE(tf.keras.Model):
         self.logdir = './' + self.model_name  # if not exist create logdir
         self.model_dir = self.logdir + 'final_model'
 
-        #self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
-        self.gpu_list = ['/gpu:0']
+        self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
+        #self.gpu_list = ['/gpu:0']
 
         print("Completed creating the model")
         logging.debug("Completed creating the model")
