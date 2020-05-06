@@ -8,7 +8,7 @@ import numpy as np
 import pathlib
 #from utils.subsample import MaskFunc
 #import utils.transforms as T
-#from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 from fastmri_data import get_training_pair_images_vae, get_random_accelerations
 import math
 import logging
@@ -26,10 +26,10 @@ class CVAE(tf.keras.Model):
         #TODO: add config parser
         #self.initizler = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.05, seed=None)
 
-        self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
+        #self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
         self.training_datadir = '/jmain01/home/JAD029/txl04/jxp48-txl04/data/fastmri_singlecoil/singlecoil_train/'
 
-        self.BATCH_SIZE = 10
+        self.BATCH_SIZE = 16
         self.num_epochs = 300
         self.learning_rate = 1e-3
         self.model_name="CVAE"
@@ -83,13 +83,11 @@ class CVAE(tf.keras.Model):
         self.saver = tf.train.Saver()
         self.logdir = './' + self.model_name  # if not exist create logdir
         self.model_dir = self.logdir + 'final_model'
-
-
-
+        self.image_dir=   './' + self.model_name + '/images/'
         self.logdir = './' + self.model_name  # if not exist create logdir
         self.model_dir = self.logdir + 'final_model'
 
-        self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
+        #self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
         #self.gpu_list = ['/gpu:0']
 
         print("Completed creating the model")
@@ -207,6 +205,8 @@ class CVAE(tf.keras.Model):
 
                             elbo = -loss
 
+
+
                             if math.isnan(elbo):
                                 logging.debug("Epoch: " + str(epoch) + "stopping as elbo is nan")
                                 break
@@ -223,8 +223,10 @@ class CVAE(tf.keras.Model):
                                 logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
 
 
+                    sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
 
-
+                    self.save_images(reconstructed_images,"recon"+str(epoch))
+                    self.save_images(sampled_image,"sample"+str(epoch))
 
                     if (epoch % 10 == 0):
                         logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(elbo))
@@ -288,6 +290,16 @@ class CVAE(tf.keras.Model):
         lrate= initial_lrate* math.pow(drop, math.floor((1+epoch)/epochs_drop))
         return lrate
 
+    def save_images(self, numpy_array, tag):
+
+        fig = plt.figure(figsize=(4,4))
+
+        for i in range(numpy_array.shape[0]):
+            plt.subplot(4,4,i+1)
+            plt.imshow(numpy_array[i,:,:,0], cmap='gray')
+            plt.axis("off")
+
+        plt.savefig('image_at_epoch' + tag + '_.png')
 
 if __name__ == '__main__':
 
