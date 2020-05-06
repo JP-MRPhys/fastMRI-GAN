@@ -226,7 +226,7 @@ class CVAE(tf.keras.Model):
                     sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
 
                     logging.debug("Epoch: " + str(epoch) + "completed")
-
+                    print("epoch:" + str(epoch) + "Completed")
                     self.save_images(reconstructed_images,"recon"+str(epoch))
                     self.save_images(sampled_image,"sample"+str(epoch))
 
