@@ -88,7 +88,7 @@ class CVAE(tf.keras.Model):
         self.logdir = './' + self.model_name  # if not exist create logdir
         self.model_dir = self.logdir + 'final_model'
 
-        self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
+        self.gpu_list=['/gpu:0', '/gpu:1' ,'/gpu:2', '/gpu:3']
         #self.gpu_list = ['/gpu:0']
 
         print("Completed creating the model")
