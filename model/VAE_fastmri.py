@@ -55,6 +55,8 @@ class CVAE(tf.keras.Model):
         logits = self.decoder(self.z)
         self.reconstructed = tf.sigmoid(logits)
 
+
+
         # calculate the KL loss
         var = tf.exp(logvar)
         kl_loss = 0.5 * tf.reduce_sum(tf.square(mean) + var - 1. - logvar)
@@ -66,7 +68,6 @@ class CVAE(tf.keras.Model):
         self.Optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5).minimize(self.total_loss, var_list=self.list_gradients)
 
 
-        # TODO: add summaries
 
         # summary and writer for tensorboard visulization
 
