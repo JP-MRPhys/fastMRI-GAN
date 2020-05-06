@@ -301,7 +301,8 @@ class CVAE(tf.keras.Model):
             plt.imshow(numpy_array[i,:,:,0], cmap='gray')
             plt.axis("off")
 
-        plt.savefig('image_at_epoch' + tag + '_.png')
+        filename=self.image_dir + '_image_at_epoch_' + tag + '_.png';
+        plt.savefig(filename)
 
 if __name__ == '__main__':
 
