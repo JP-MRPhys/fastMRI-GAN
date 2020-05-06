@@ -97,6 +97,9 @@ class CVAE(tf.keras.Model):
         if (os.path.exists(self.image_dir)):
             shutil.rmtree(self.image_dir, ignore_errors=True)
             os.makedirs(self.image_dir)
+        else:
+            os.makedirs(self.image_dir)
+
 
     def inference_net(self):
         input_image = tf.keras.layers.Input(self.image_shape)  # 224,224,1
