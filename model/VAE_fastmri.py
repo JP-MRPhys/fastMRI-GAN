@@ -88,7 +88,7 @@ class CVAE(tf.keras.Model):
         self.model_dir = self.logdir + 'final_model'
 
         #self.gpu_list=['/gpu:0', '/gpu:1' '/gpu:2', '/gpu:3']
-        #self.gpu_list = ['/gpu:0']
+        self.gpu_list = ['/gpu:0']
 
         print("Completed creating the model")
         logging.debug("Completed creating the model")
