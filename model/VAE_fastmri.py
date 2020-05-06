@@ -94,6 +94,10 @@ class CVAE(tf.keras.Model):
         print("Completed creating the model")
         logging.debug("Completed creating the model")
 
+        if (os.path.exists(self.image_dir)):
+            shutil.rmtree(self.image_dir, ignore_errors=True)
+            os.makedirs(self.image_dir)
+
     def inference_net(self):
         input_image = tf.keras.layers.Input(self.image_shape)  # 224,224,1
         net = tf.keras.layers.Conv2D(
