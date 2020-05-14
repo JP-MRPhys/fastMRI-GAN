@@ -109,7 +109,7 @@ def pixelcnn(inputs, num_layers_pixelcnn, fmaps_pixelcnn, num_embeddings, code_s
 	with tf.variable_scope("fc_2_pixelcnn"):
 		fc2 = simple_conv_pixelcnn(W_shape_f=[1, 1, num_embeddings], fan_in=fc1, activation=False)
 
-	dist = tf.distributions.Categorical(logits=fc2)
+	dist = tf.compat.v1.distributions.Categorical(logits=fc2)
 	sampled_pixelcnn = dist.sample()
 	log_prob_pixelcnn = dist.log_prob(sampled_pixelcnn)
 
