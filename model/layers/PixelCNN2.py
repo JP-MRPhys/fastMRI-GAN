@@ -53,7 +53,7 @@ def gated_conv_pixelcnn(W_shape_f, fan_in, horizontal, payload=None, mask=None):
 		conv_f += payload
 		conv_g += payload
 
-	fan_out = tf.multiply(tf.tanh(conv_f + b_f_total), tf.sigmoid(conv_g + b_g_total))
+	fan_out = tf.math.multiply(tf.tanh(conv_f + b_f_total), tf.sigmoid(conv_g + b_g_total))
 	return fan_out
 
 def simple_conv_pixelcnn(W_shape_f, fan_in, activation=True):
@@ -71,7 +71,7 @@ def simple_conv_pixelcnn(W_shape_f, fan_in, activation=True):
 	if activation:
 		fan_out = tf.nn.relu(tf.add(conv, b))
 	else:
-		fan_out = tf.add(conv, b)
+		fan_out = tf.math.add(conv, b)
 	return fan_out
 
 def pixelcnn(inputs, num_layers_pixelcnn, fmaps_pixelcnn, num_embeddings, code_size):
@@ -115,8 +115,8 @@ def pixelcnn(inputs, num_layers_pixelcnn, fmaps_pixelcnn, num_embeddings, code_s
 
 	inputs = tf.reshape(inputs, tf.shape(inputs)[:-1])
 	inputs = tf.cast(inputs, tf.int32)
-	loss_per_batch = tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=fc2, labels=inputs), axis=[1,2])
-	loss_pixelcnn = tf.reduce_mean(loss_per_batch)
+	loss_per_batch = tf.math.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=fc2, labels=inputs), axis=[1,2])
+	loss_pixelcnn = tf.math.reduce_mean(loss_per_batch)
 
 	return {'loss_pixelcnn': loss_pixelcnn,
 			'sampled_pixelcnn': sampled_pixelcnn,
