@@ -151,7 +151,7 @@ class VQ_VAE1(tf.keras.Model):
         return net
 
     def generative_net(self):
-        latent_input = tf.keras.layers.Input((self.image_dim/4,self.image_dim/4,self.latent_dim))
+        latent_input = tf.keras.layers.Input((int(self.image_dim/4),int(self.image_dim/4),self.latent_dim))
         net = tf.keras.layers.Conv2DTranspose(
             filters=256,
             kernel_size=3,
