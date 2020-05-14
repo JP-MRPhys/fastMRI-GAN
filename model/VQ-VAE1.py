@@ -34,8 +34,8 @@ class VQ_VAE1(tf.keras.Model):
         #self.initizler = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.05, seed=None)
         #self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
         self.training_datadir = '/jmain01/home/JAD029/txl04/jxp48-txl04/data/fastmri_singlecoil/singlecoil_train/'
-        #self.gpu_list = ['/gpu:0', '/gpu:1', '/gpu:2', '/gpu:3']
-        self.gpu_list = ['/gpu:0']
+        self.gpu_list = ['/gpu:0', '/gpu:1', '/gpu:2', '/gpu:3']
+        #self.gpu_list = ['/gpu:0']
 
 
         self.BATCH_SIZE = 10
