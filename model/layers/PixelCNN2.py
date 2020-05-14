@@ -106,7 +106,7 @@ def pixelcnn(inputs, num_layers_pixelcnn, fmaps_pixelcnn, num_embeddings, code_s
 
 	with  tf.compat.v1.variable_scope("fc_1_pixelcnn"):
 		fc1 = simple_conv_pixelcnn(W_shape_f=[1, 1, fmaps_pixelcnn], fan_in=h_stack_in)
-	with tf.variable_scope("fc_2_pixelcnn"):
+	with tf.compat.v1.variable_scope("fc_2_pixelcnn"):
 		fc2 = simple_conv_pixelcnn(W_shape_f=[1, 1, num_embeddings], fan_in=fc1, activation=False)
 
 	dist = tf.compat.v1.distributions.Categorical(logits=fc2)
