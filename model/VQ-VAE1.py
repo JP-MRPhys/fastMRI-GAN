@@ -229,6 +229,10 @@ class VQ_VAE1(tf.keras.Model):
                             #train PixelCNN
                             feed_dict1={self.input_image_1: batch_images,  self.pixelCNN_input: pixelcnn_training_input}
                             pixelcnn_loss, _= self.sess.run([self.loss_pixelcnn, self.optimizer_pixelcnn], feed_dict=feed_dict1)
+                            logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(
+                                elbo) + "VQ-VAE loss" + str(loss))
+                            logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(
+                                learning_rate) + "Pixel CNN Loss: " + str(pixelcnn_loss))
 
 
 
@@ -241,6 +245,7 @@ class VQ_VAE1(tf.keras.Model):
 
                         print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo) + "VQ-VAE loss" + str(loss))
                         print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "Pixel CNN Loss: " + str(pixelcnn_loss))
+
 
 
                     #epoch completed save images
