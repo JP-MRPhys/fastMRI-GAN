@@ -88,23 +88,23 @@ def pixelcnn(inputs, num_layers_pixelcnn, fmaps_pixelcnn, num_embeddings, code_s
 		residual = True if i > 0 else False
 		i = str(i)
 
-		with tf.variable_scope("v_stack_pixelcnn"+i):
+		with tf.compat.v1.variable_scope("v_stack_pixelcnn"+i):
 			v_stack = gated_conv_pixelcnn(W_shape_f=[filter_size, filter_size, fmaps_pixelcnn], fan_in=v_stack_in, horizontal=False, mask=mask)
 			v_stack_in = v_stack
 
-		with tf.variable_scope("v_stack_1_pixelcnn"+i):
+		with tf.compat.v1.variable_scope("v_stack_1_pixelcnn"+i):
 			v_stack_1 = simple_conv_pixelcnn(W_shape_f=[1, 1, fmaps_pixelcnn], fan_in=v_stack_in)
 
-		with tf.variable_scope("h_stack_pixelcnn"+i):
+		with tf.compat.v1.variable_scope("h_stack_pixelcnn"+i):
 			h_stack = gated_conv_pixelcnn(W_shape_f=[filter_size, filter_size, fmaps_pixelcnn], fan_in=h_stack_in, horizontal=True, payload=v_stack_1, mask=mask)
 
-		with tf.variable_scope("h_stack_1_pixelcnn"+i):
+		with tf.compat.v1.variable_scope("h_stack_1_pixelcnn"+i):
 			h_stack_1 = simple_conv_pixelcnn(W_shape_f=[1, 1, fmaps_pixelcnn], fan_in=h_stack)
 			if residual:
 				h_stack_1 += h_stack_in
 			h_stack_in = h_stack_1
 
-	with tf.variable_scope("fc_1_pixelcnn"):
+	with tf.compat.v1.variable_scope("fc_1_pixelcnn"):
 		fc1 = simple_conv_pixelcnn(W_shape_f=[1, 1, fmaps_pixelcnn], fan_in=h_stack_in)
 	with tf.variable_scope("fc_2_pixelcnn"):
 		fc2 = simple_conv_pixelcnn(W_shape_f=[1, 1, num_embeddings], fan_in=fc1, activation=False)
