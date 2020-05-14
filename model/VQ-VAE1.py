@@ -1,12 +1,22 @@
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf  #NOTE: To train on tensorflow version 2.0
+tf.disable_v2_behavior()
 
 import numpy as np
 import pathlib
-#from matplotlib import pyplot as plt
-from model.fastmri_data import get_training_pair_images_vae, get_random_accelerations
-from model.layers.vector_quantizier import vector_quantizer
-from model.layers.PixelCNN2 import pixelcnn
+from matplotlib import pyplot as plt
+from fastmri_data import get_training_pair_images_vae, get_random_accelerations
+from layers.vector_quantizier import vector_quantizer
+from layers.PixelCNN2 import pixelcnn
 
+
+import logging
+import os
+import shutil
+import math
+
+LOG_FILENAME="VQVAE_TRAINING.LOG"
+logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 #test
 
 grad_clip_pixelcnn=1
@@ -22,18 +32,23 @@ class VQ_VAE1(tf.keras.Model):
 
         #TODO: add config parser
         #self.initizler = tf.keras.initializers.TruncatedNormal(mean=0.0, stddev=0.05, seed=None)
-        self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
+        #self.training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
+        self.training_datadir = '/jmain01/home/JAD029/txl04/jxp48-txl04/data/fastmri_singlecoil/singlecoil_train/'
+        #self.gpu_list = ['/gpu:0', '/gpu:1', '/gpu:2', '/gpu:3']
+        self.gpu_list = ['/gpu:0']
+
 
         self.BATCH_SIZE = 10
-        self.num_epochs = 300
+        self.num_epochs = 10
         self.learning_rate = 1e-3
         self.model_name="VQVAE1"
+        self.model_name2="pixelCNN"
 
         self.image_dim = 128
         self.channels = 1
         self.latent_dim = 64    #embedding dimensions D
         self.num_embeddings=8   # k: Categorical, increasing this is recommeded compared to the bottle neck layer
-        self.code_size= 16 #to be set directly from z_e
+        self.code_size= 16      #to be set directly from z_e
 
         self.commitment_cost=0.25
 
@@ -68,8 +83,8 @@ class VQ_VAE1(tf.keras.Model):
 
         #pixelCNN
         #pixelCNN inputs
-        self.pixelCNN_input=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size))
-        self.pixelCNN_samples=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size))
+        self.pixelCNN_input=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size), name="training_input_pixelCNN")
+        self.pixelCNN_samples=tf.placeholder(tf.float32, shape=(None, self.code_size, self.code_size), name="pixelCNN_prior")
         self.learning_rate = tf.placeholder(tf.float32, [], name='learning_rate')
 
         #pixel CNN
@@ -92,18 +107,30 @@ class VQ_VAE1(tf.keras.Model):
 
         # TODO: add summaries
         # summary and writer for tensorboard visulization
-        tf.summary.image("Reconstructed image", self.reconstruction)
-        tf.summary.image("Input image", self.input_image)
+        tf.summary.image("Reconstructed_image", self.reconstruction)
+        tf.summary.image("Input_image", self.input_image)
         tf.summary.scalar("SSE",sse_loss)
-        tf.summary.scalar("Total loss", self.total_loss)
+        tf.summary.scalar("Total_loss", self.total_loss)
 
         self.merged_summary = tf.summary.merge_all()
         self.init = tf.global_variables_initializer()
+        self.saver = tf.train.Saver()
 
         self.logdir = './' + self.model_name  # if not exist create logdir
+        self.image_dir = './' + self.model_name + '/images/'
         self.model_dir = self.logdir + 'final_model'
 
+        self.gpu_list = ['/gpu:0', '/gpu:1', '/gpu:2', '/gpu:3']
+        # self.gpu_list = ['/gpu:0']
+
         print("Completed creating the model")
+        logging.debug("Completed creating the model")
+
+        if (os.path.exists(self.image_dir)):
+            shutil.rmtree(self.image_dir, ignore_errors=True)
+            os.makedirs(self.image_dir)
+        else:
+            os.makedirs(self.image_dir)
 
     def inference_net(self):
         input_image = tf.keras.layers.Input(self.image_shape)  # 128,128,1
@@ -154,19 +181,31 @@ class VQ_VAE1(tf.keras.Model):
 
     # we train both pixelCNN and the VQ-VAE
     def train(self):
-        with tf.device('/gpu:0'):
+
+        for d in self.gpu_list:
+          with tf.device(d):
+
+
             with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
-                learning_rate=1e-3
+                learning_rate=2e-4
                 counter = 0
+
+                filenames = list(pathlib.Path(self.training_datadir).iterdir())
+                filenames=filenames[0:10]
 
                 self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
                 self.sess.run(self.init)
 
+                centre_fraction, acceleration = get_random_accelerations(high=5)
+                test_images, test_labels = get_training_pair_images_vae(filenames[0], centre_fraction, acceleration) # use one dataset to see training
+
+                print(np.shape(test_images))
+
                 for epoch in range(0, self.num_epochs):
 
                     print("************************ epoch:" + str(epoch) + "*****************")
-                    filenames = list(pathlib.Path(self.training_datadir).iterdir())
+
                     np.random.shuffle(filenames)
                     print("Number training data " + str(len(filenames)))
                     np.random.shuffle(filenames)
@@ -190,23 +229,49 @@ class VQ_VAE1(tf.keras.Model):
                                 feed_dict=feed_dict)
 
                             #train PixelCNN
-                            feed_dict={self.input_image_1: self.batch_input,  self.pixelCNN_input: pixelcnn_training_input}
-                            pixelcnn_loss, _= self.sess.run(self.loss_pixelcnn, self.optimizer_pixelcnn, feed_dict)
+                            feed_dict1={self.input_image_1: batch_images,  self.pixelCNN_input: pixelcnn_training_input}
+                            pixelcnn_loss, _= self.sess.run([self.loss_pixelcnn, self.optimizer_pixelcnn], feed_dict=feed_dict1)
 
-                            #sampled_image = self.sess.run(self.reconstructed, feed_dict={self.z: z_samples})
 
-                            counter += 1
-                            if (counter % 5 == 0):
-                                self.train_writer.add_summary(summary)
+
+                            elbo=-loss
+
+
+                            if math.isnan(elbo):
+                                logging.debug("Epoch: " + str(epoch) + "stopping as elbo is nan")
+                                break
 
                         print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "ELBO: " + str(elbo) + "VQ-VAE loss" + str(loss))
                         print("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) +  "Pixel CNN Loss: " + str(pixelcnn_loss))
 
+
+                    #epoch completed save images
+                    logging.debug("Epoch: " + str(epoch) + "completed")
+                    print("epoch:" + str(epoch) + "Completed")
+
+                    recons=self.reconstruct_withPixelCNN(test_images)
+                    self.save_images(recons[12:25], "pixelCNN_recons_0" +str(epoch))
+
+                    sampled_image_pixcelCNN=self.images_samples_withPixelCNN(self.BATCH_SIZE)
+                    self.save_images(sampled_image_pixcelCNN,"pixelcnn_samples_0"+str(epoch))
+
+                    sampled_image=self.images_samples(self.BATCH_SIZE)
+                    self.save_images(sampled_image, "gaussianprior_samples_0" + str(epoch))
+
+                    if (epoch % 10 == 0):
+                        logging.debug("Save model after epoch" + str(epoch))
+                        self.save_model(self.model_name)
+
+                    if (epoch % 10 == 0):
+                        self.train_writer.add_summary(summary)
+
+
                 print("Training completed .... Saving model")
-                # self.save_model(self.model_name)
+                logging.debug(("Training completed .... Saving model"))
+                self.save_model(self.model_name + "_final")
                 print("All completed good bye")
 
-
+    # Additional code just for training PixcelCNN for future reference:
     def train_pixelCNN(self):
             #Not tested just if you want a separate loop but will be 2X longer
             with tf.device('/gpu:0'):
@@ -259,15 +324,18 @@ class VQ_VAE1(tf.keras.Model):
 
     def reconstruct_withPixelCNN(self, test_image):
 
-        with tf.device('/gpu:0'):
-            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
-                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
-                self.sess.run(self.init)
+                number_images = np.shape(test_image)[0]  # asumming batch_size, H,W,C
+
+        #with tf.device('/gpu:0'):
+        #    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+        #       self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                #self.sess.run(self.init)
+
                 #generate the prior's first
-                samples = self.generate_PixelCNN_samples(self.sess, self.image_dim, self.image_dim)
+                samples = self.generate_PixelCNN_samples(number_images)
 
                 #pass x encoder to z and then z and with pixelCNN sample to recon image
-                feed_dict = {self.input_image: test_image}
+                feed_dict = {self.input_image_1: test_image}
                 z=self.sess.run(self.z_e, feed_dict=feed_dict)
 
                 #pass it to reconstructure the recon imageS
@@ -278,12 +346,14 @@ class VQ_VAE1(tf.keras.Model):
 
     def reconstruct(self, test_image):
 
-        number_images=np.shape(test_image)[0]  #asumming batch_size, H,W,C
-        with tf.device('/gpu:0'):
-            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
-                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
-                self.sess.run(self.init)
-                # generate the prior's i.e. encoding indices from a gaussian
+        # reconstruct with gaussian prior i.e. normal prior
+
+                number_images=np.shape(test_image)[0]  #asumming batch_size, H,W,C
+                #with tf.device('/gpu:0'):
+                #    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+                #        self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                #        self.sess.run(self.init)
+                        # generate the prior's i.e. encoding indices from a gaussian
                 prior_samples = np.random.randint(1, self.num_embeddings, size=(number_images, self.code_size, self.code_size)).astype(np.float32)   # TODO: recheck the flow here
 
                 # pass x encoder to z and then z and with pixelCNN sample to recon image
@@ -300,13 +370,13 @@ class VQ_VAE1(tf.keras.Model):
     def images_samples_withPixelCNN(self, number_of_images):
 
 
-        with tf.device('/gpu:0'):
-            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
-                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
-                self.sess.run(self.init)
-
+        #with tf.device('/gpu:0'):
+            #with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+                #self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                #self.sess.run(self.init)
                 #generate the prior's first these are sof the shape (number_images, seld.code_size, self.code_size)
-                prior_indices_pixelCNN = self.generate_PixelCNN_samples(self.sess, number_of_images)
+
+                prior_indices_pixelCNN = self.generate_PixelCNN_samples(number_of_images)
 
                 #- this should be z_e shape
                 z_e= np.random.uniform(-1, 1, size=(number_of_images, self.code_size, self.code_size, self.latent_dim)).astype(np.float32)  #TODO: may need to check the shapes current assuming 1 images
@@ -319,21 +389,20 @@ class VQ_VAE1(tf.keras.Model):
                 # #Option 2 can also use text_image=np.zeros(shape=(batch, self.image_dim,self.image_dim,self.channels) to get z_e
                 # Option 3 generated random z_q, see VQ code & reference for info
 
-        return recon_pixelcnn_res
+                return recon_pixelcnn_res
 
     def images_samples(self, number_of_images):
 
-        with tf.device('/gpu:0'):
-            with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
-                self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
-                self.sess.run(self.init)
+        #with tf.device('/gpu:0'):
+        #    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
+                #self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
+                #self.sess.run(self.init)
                 # generate the prior's first incideces first
-                prior_indices=np.random.randint(0, self.num_embeddings, shape=(number_of_images, self.code_size, self.code_size))
+                prior_indices=np.random.randint(low=0, high= self.num_embeddings, size=(number_of_images, self.code_size, self.code_size))
 
                 # - this should be z_e shape
                 z_e = np.random.uniform(-1, 1, size=(
-                number_of_images, self.code_size, self.code_size, self.latent_dim)).astype(
-                    np.float32)
+                number_of_images, self.code_size, self.code_size, self.latent_dim)).astype(np.float32)
                 # First we sample prior encoding_indices from pixelCNN shape (number_of_sample=, code_size, code_size)
                 # we then pass fake "z_e" to obtain "z_q" from prior encoding indices via look i.e z_e not used, then z_q which is feed to cnn-decoder
 
@@ -343,21 +412,67 @@ class VQ_VAE1(tf.keras.Model):
                 # Option 2 can also use text_image=np.zeros(shape=(batch, self.image_dim,self.image_dim,self.channels) to get z_e
                 # Option 3 generated random z_q, see VQ code & reference for info
 
-        return recon_pixelcnn_res
+                return recon_pixelcnn_res
 
 
-    def generate_PixelCNN_samples(self, sess, batch_size):
+    def generate_PixelCNN_samples(self, batch_size):
 
         samples = np.zeros(shape=(batch_size, self.code_size, self.code_size), dtype=np.int32)
         for j in range(self.code_size):
             for k in range(self.code_size):
-                data_dict = {self.pixelCNN_samples: samples}
-                next_sample = sess.run(self.sampled_pixelcnn_train, feed_dict=data_dict)
+                data_dict = {self.pixelCNN_input: samples}
+                next_sample = self.sess.run(self.sampled_pixelcnn_train, feed_dict=data_dict)
                 samples[:, j, k] = next_sample[:, j, k]
-        samples.astype(np.int32)
 
-        return samples
-        
+
+
+        return samples.astype(np.int32)
+
+
+    def save_model(self, model_name):
+
+        print ("Saving the model after training")
+        if (os.path.exists(self.model_dir)):
+            shutil.rmtree(self.model_dir, ignore_errors=True)
+            os.makedirs(self.model_dir)
+
+
+        self.saver.save(self.sess, os.path.join(self.model_dir, model_name))
+        print("Completed saving the model")
+        logging.debug("Completed saving the model")
+
+
+
+    def load_model(self, model_name):
+
+        print ("Checking for the model")
+
+        with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as new_sess:
+
+            saver =tf.train.import_meta_graph((model_name + '.meta'))
+            #saver.restore(self.sess, self.model_dir)
+            saver.restore(new_sess,tf.train.latest_checkpoint("./"))
+            print ("Session restored")
+            return new_sess
+
+    def step_decay(self, epoch):
+        initial_lrate=0.001
+        drop = 0.5
+        epochs_drop=4
+        lrate= initial_lrate* math.pow(drop, math.floor((1+epoch)/epochs_drop))
+        return lrate
+
+    def save_images(self, numpy_array, tag):
+
+        fig = plt.figure(figsize=(4,4))
+
+        for i in range(numpy_array.shape[0]):
+            plt.subplot(4,4,i+1)
+            plt.imshow(numpy_array[i,:,:,0], cmap='gray')
+            plt.axis("off")
+
+        filename=self.image_dir + '_image_at_epoch_' + tag + '_.png';
+        plt.savefig(filename)
 
 
 
@@ -366,4 +481,4 @@ class VQ_VAE1(tf.keras.Model):
 if __name__ == '__main__':
 
     model=VQ_VAE1()
-    #model.train()
+    model.train()
