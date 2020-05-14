@@ -67,7 +67,7 @@ def simple_conv_pixelcnn(W_shape_f, fan_in, activation=True):
 	W = get_weights_pixelcnn(shape=W_shape, name="W")
 	b = tf.compat.v1.get_variable(name="b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
 
-	conv = tf.nn.conv2d(input=fan_in, filter=W, strides=[1,1,1,1], padding='SAME')
+	conv = tf.compat.v1.nn.conv2d(input=fan_in, filter=W, strides=[1,1,1,1], padding='SAME')
 	if activation:
 		fan_out = tf.nn.relu(tf.add(conv, b))
 	else:
