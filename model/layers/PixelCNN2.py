@@ -43,8 +43,8 @@ def gated_conv_pixelcnn(W_shape_f, fan_in, horizontal, payload=None, mask=None):
 
 	W_f = get_weights_pixelcnn(shape=W_shape, name="v_W", horizontal=horizontal, mask=mask)
 	W_g = get_weights_pixelcnn(shape=W_shape, name="h_W", horizontal=horizontal, mask=mask)
-	b_f_total = tf.get_variable(name="v_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
-	b_g_total = tf.get_variable(name="h_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
+	b_f_total = tf.compat.v1.get_variable(name="v_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
+	b_g_total = tf.compat.v1.get_variable(name="h_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
 
 	conv_f = tf.nn.conv2d(input=fan_in, filter=W_f, strides=[1,1,1,1], padding='SAME')
 	conv_g = tf.nn.conv2d(input=fan_in, filter=W_g, strides=[1,1,1,1], padding='SAME')
@@ -65,7 +65,7 @@ def simple_conv_pixelcnn(W_shape_f, fan_in, activation=True):
 	W_shape = [W_shape_f[0], W_shape_f[1], in_dim, W_shape_f[2]]
 	b_shape = W_shape_f[2]
 	W = get_weights_pixelcnn(shape=W_shape, name="W")
-	b = tf.get_variable(name="b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
+	b = tf.compat.v1.get_variable(name="b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
 
 	conv = tf.nn.conv2d(input=fan_in, filter=W, strides=[1,1,1,1], padding='SAME')
 	if activation:
