@@ -10,8 +10,9 @@ def get_weights_pixelcnn(shape, name, horizontal=False, mask=None):
 	      'a' for masked filter in the first layer;
 	      'b' for masked filter in the second, third,... layers.
 	'''
-	weights_initializer = tf.contrib.layers.xavier_initializer()
-	W = tf.get_variable(name=name, shape=shape, dtype=tf.float32, initializer=weights_initializer)
+	#weights_initializer = tf.contrib.layers.xavier_initializer()
+	weights_initializer=tf.initializers.glorot_uniform()
+	W = tf.compat.v1.get_variable(name=name, shape=shape, dtype=tf.float32, initializer=weights_initializer)
 	if mask:
 		filter_mid_y = shape[0]//2
 		filter_mid_x = shape[1]//2 # [filter_mid_y, filter_mid_x] is the center of the filter
@@ -63,7 +64,6 @@ def simple_conv_pixelcnn(W_shape_f, fan_in, activation=True):
 	in_dim = fan_in.get_shape()[-1]
 	W_shape = [W_shape_f[0], W_shape_f[1], in_dim, W_shape_f[2]]
 	b_shape = W_shape_f[2]
-
 	W = get_weights_pixelcnn(shape=W_shape, name="W")
 	b = tf.get_variable(name="b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
 
@@ -104,7 +104,7 @@ def pixelcnn(inputs, num_layers_pixelcnn, fmaps_pixelcnn, num_embeddings, code_s
 				h_stack_1 += h_stack_in
 			h_stack_in = h_stack_1
 
-	with tf.compat.v1.variable_scope("fc_1_pixelcnn"):
+	with  tf.compat.v1.variable_scope("fc_1_pixelcnn"):
 		fc1 = simple_conv_pixelcnn(W_shape_f=[1, 1, fmaps_pixelcnn], fan_in=h_stack_in)
 	with tf.variable_scope("fc_2_pixelcnn"):
 		fc2 = simple_conv_pixelcnn(W_shape_f=[1, 1, num_embeddings], fan_in=fc1, activation=False)
