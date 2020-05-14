@@ -51,7 +51,6 @@ class VQ_VAE1(tf.keras.Model):
         self.code_size= 16      #to be set directly from z_e
 
         self.commitment_cost=0.25
-
         self.kernel_size = 3
         lrelu = lambda x: tf.keras.activations.relu(x, alpha=0.3)
         self.activation = lrelu
@@ -120,9 +119,6 @@ class VQ_VAE1(tf.keras.Model):
         self.image_dir = './' + self.model_name + '/images/'
         self.model_dir = self.logdir + 'final_model'
 
-        self.gpu_list = ['/gpu:0', '/gpu:1', '/gpu:2', '/gpu:3']
-        # self.gpu_list = ['/gpu:0']
-
         print("Completed creating the model")
         logging.debug("Completed creating the model")
 
@@ -188,11 +184,11 @@ class VQ_VAE1(tf.keras.Model):
 
             with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as self.sess:
 
-                learning_rate=2e-4
+                #learning_rate=2e-4
                 counter = 0
 
                 filenames = list(pathlib.Path(self.training_datadir).iterdir())
-                filenames=filenames[0:10]
+
 
                 self.train_writer = tf.summary.FileWriter(self.logdir, tf.get_default_graph())
                 self.sess.run(self.init)
@@ -205,6 +201,8 @@ class VQ_VAE1(tf.keras.Model):
                 for epoch in range(0, self.num_epochs):
 
                     print("************************ epoch:" + str(epoch) + "*****************")
+
+                    learning_rate = self.step_decay(epoch)
 
                     np.random.shuffle(filenames)
                     print("Number training data " + str(len(filenames)))
@@ -262,7 +260,7 @@ class VQ_VAE1(tf.keras.Model):
                         logging.debug("Save model after epoch" + str(epoch))
                         self.save_model(self.model_name)
 
-                    if (epoch % 10 == 0):
+                    if (epoch % 5 == 0):
                         self.train_writer.add_summary(summary)
 
 
@@ -456,7 +454,7 @@ class VQ_VAE1(tf.keras.Model):
             return new_sess
 
     def step_decay(self, epoch):
-        initial_lrate=0.001
+        initial_lrate=0.0005
         drop = 0.5
         epochs_drop=4
         lrate= initial_lrate* math.pow(drop, math.floor((1+epoch)/epochs_drop))
