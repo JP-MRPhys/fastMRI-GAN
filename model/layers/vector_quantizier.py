@@ -13,9 +13,13 @@ def vector_quantizer(inputs, embedding_dim, num_embeddings, commitment_cost, ran
     with tf.control_dependencies([assert_dim]):
         flat_inputs = tf.reshape(inputs, [-1, embedding_dim])
 
-    with tf.variable_scope('vq', reuse=tf.AUTO_REUSE):
-        emb_vq = tf.get_variable(name='embedding_vq', shape=[embedding_dim, num_embeddings],
-                                 initializer=tf.uniform_unit_scaling_initializer())
+    #with tf.variable_scope('vq', reuse=tf.AUTO_REUSE):
+        #emb_vq = tf.get_variable(name='embedding_vq', shape=[embedding_dim, num_embeddings],
+        #                         initializer=tf.uniform_unit_scaling_initializer())
+
+    with tf.compat.v1.variable_scope('vq', reuse=tf.compat.v1.AUTO_REUSE):
+         emb_vq = tf.compat.v1.get_variable(name='embedding_vq', shape=[embedding_dim, num_embeddings],initializer = tf.compat.v1.uniform_unit_scaling_initializer())
+
 
     if (only_lookup == False):
         distances = tf.reduce_sum(flat_inputs ** 2, 1, keepdims=True) - 2 * tf.matmul(flat_inputs,
