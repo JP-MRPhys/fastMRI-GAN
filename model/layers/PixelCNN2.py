@@ -46,8 +46,8 @@ def gated_conv_pixelcnn(W_shape_f, fan_in, horizontal, payload=None, mask=None):
 	b_f_total = tf.compat.v1.get_variable(name="v_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
 	b_g_total = tf.compat.v1.get_variable(name="h_b", shape=b_shape, dtype=tf.float32, initializer=tf.zeros_initializer)
 
-	conv_f = tf.nn.conv2d(input=fan_in, filter=W_f, strides=[1,1,1,1], padding='SAME')
-	conv_g = tf.nn.conv2d(input=fan_in, filter=W_g, strides=[1,1,1,1], padding='SAME')
+	conv_f = tf.compat.v1.nn.conv2d(input=fan_in, filter=W_f, strides=[1,1,1,1], padding='SAME')
+	conv_g = tf.compat.v1.nn.conv2d(input=fan_in, filter=W_g, strides=[1,1,1,1], padding='SAME')
 
 	if payload is not None:
 		conv_f += payload
