@@ -2,7 +2,7 @@ import  tensorflow as tf
 import numpy as np
 
 
-from model.utils.Layers import linear, upsampling_2D
+from models.utils.Layers import linear, upsampling_2D
 
 
 def generator(z):

@@ -2,6 +2,8 @@
 import tensorflow as tf
 import numpy as np
 
+#refactore to run on tensorflow version 2 on the server
+
 def get_weights_pixelcnn(shape, name, horizontal=False, mask=None):
 	'''
 	shape: [filter_size, filter_size, img_channel, f_map] (filter_size should be odd)
