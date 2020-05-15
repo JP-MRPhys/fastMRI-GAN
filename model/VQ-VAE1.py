@@ -115,7 +115,7 @@ class VQ_VAE1(tf.keras.Model):
         self.init = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
 
-        self.logdir = './trained' + self.model_name  # if not exist create logdir
+        self.logdir = './trained_models/' + self.model_name  # if not exist create logdir
         self.image_dir = './' + self.model_name + '/images/'
         self.model_dir = self.logdir + '/final_model'
 
