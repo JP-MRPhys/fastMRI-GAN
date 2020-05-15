@@ -260,7 +260,7 @@ class VQ_VAE1(tf.keras.Model):
                     print("epoch:" + str(epoch) + "Completed")
 
                     recons=self.reconstruct_withPixelCNN(test_images)
-                    self.save_images(recons[12:25], "pixelCNN_recons_0" +str(epoch))
+                    self.save_images(recons[17:33], "pixelCNN_recons_0" +str(epoch))
 
                     sampled_image_pixcelCNN=self.images_samples_withPixelCNN(self.BATCH_SIZE)
                     self.save_images(sampled_image_pixcelCNN,"pixelcnn_samples_0"+str(epoch))
