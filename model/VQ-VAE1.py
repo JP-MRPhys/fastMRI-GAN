@@ -15,7 +15,7 @@ import os
 import shutil
 import math
 
-LOG_FILENAME="VQVAE_TRAINING.LOG"
+LOG_FILENAME="./logs/VQVAE1_TRAINING.LOG"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 #test
 
