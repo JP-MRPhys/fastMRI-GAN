@@ -4,6 +4,8 @@ import pathlib
 from utils.subsample import MaskFunc
 import utils.transforms as T
 
+# a number of utility functions to read and transform the data
+
 
 def get_training_pair(file, centre_fraction, acceleration):
 
@@ -132,5 +134,5 @@ def train(datadir):
 if __name__ == '__main__':
 
     #training_datadir='/media/jehill/Data/ML_data/fastmri/singlecoil/train/singlecoil_train/'
-    training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
-    train(training_datadir)
+    #training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
+    #train(training_datadir)
