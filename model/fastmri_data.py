@@ -135,4 +135,4 @@ if __name__ == '__main__':
 
     #training_datadir='/media/jehill/Data/ML_data/fastmri/singlecoil/train/singlecoil_train/'
     #training_datadir='/media/jehill/DATA/ML_data/fastmri/singlecoil/train/singlecoil_train/'
-    #train(training_datadir)
+    train(training_datadir)
