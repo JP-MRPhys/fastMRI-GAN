@@ -232,10 +232,15 @@ class VQ_VAE1(tf.keras.Model):
 
                             elbo = -loss
 
-                            logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(
-                                elbo) + "VQ-VAE loss" + str(loss))
-                            logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(
-                                learning_rate) + "Pixel CNN Loss: " + str(pixelcnn_loss))
+                            counter=counter+1
+
+                            if (counter % 50 == 0):
+
+
+                                logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(learning_rate) + "ELBO: " + str(
+                                    elbo) + "VQ-VAE loss" + str(loss))
+                                logging.debug("Epoch: " + str(epoch) + " learning rate:" + str(
+                                    learning_rate) + "Pixel CNN Loss: " + str(pixelcnn_loss))
 
 
 
