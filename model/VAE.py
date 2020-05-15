@@ -82,11 +82,13 @@ class CVAE(tf.keras.Model):
         self.merged_summary = tf.summary.merge_all()
         self.init = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
+
+
         self.logdir = './trained_models/' + self.model_name  # if not exist create logdir
-        self.model_dir = self.logdir + 'final_model'
-        self.image_dir=   './' + self.model_name + '/images/'
-        self.logdir = './' + self.model_name  # if not exist create logdir
-        self.model_dir = self.logdir + 'final_model'
+        self.image_dir = self.logdir + '/images/'
+        self.model_dir = self.logdir + '/final_model'
+
+
 
         self.gpu_list=['/gpu:0', '/gpu:1' ,'/gpu:2', '/gpu:3']
         #self.gpu_list = ['/gpu:0']
