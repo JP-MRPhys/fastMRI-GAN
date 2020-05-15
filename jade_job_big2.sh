@@ -20,4 +20,4 @@
 
 module load python3/anaconda
 source activate tensorflow2-gpu
-python ./model/VQ-VAE1.py
+python ./model/VQVAE1.py

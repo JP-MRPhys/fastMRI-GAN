@@ -20,4 +20,4 @@
 
 module load python3/anaconda
 source activate tensorflow2-gpu
-python ./model/VAE_fastmri.py
+python ./model/VAE.py
