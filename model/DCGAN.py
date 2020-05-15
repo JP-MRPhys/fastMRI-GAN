@@ -41,9 +41,9 @@ from model.fastmri_data import  get_random_accelerations, get_training_pair
 
 
 class DCGAN:
-    def __init__(self, vggdir, name):
+    def __init__(self, name):
         # network parameters
-        self.vggdir = vggdir
+        #self.vggdir = vggdir
         self.training_datadir='/media/jehill/Data/ML_data/fastmri/singlecoil/train/singlecoil_train/'
         #self.labeldir=labeldir
         self.learning_rate = tf.placeholder(tf.float32, [], name='learning_rate')
@@ -484,6 +484,5 @@ class DCGAN:
 if __name__ == '__main__':
 
 
-    VGG_dir = './trained_model/VGG/'
-    network = DCGAN(VGG_dir, 'DCGAN')
+    network = DCGAN('DCGAN')
     network.train()
