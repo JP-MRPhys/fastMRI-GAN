@@ -14,7 +14,7 @@ import math
 import logging
 import shutil
 
-LOG_FILENAME="VAE_TRAINING.LOG"
+LOG_FILENAME="./logs/VAE_TRAINING.LOG"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 
