@@ -47,7 +47,7 @@ def vector_quantizer(inputs, embedding_dim, num_embeddings, commitment_cost, ran
     # 	This step is used to copy the gradient from inputs to quantized.
 
     avg_probs = tf.reduce_mean(encodings, 0)
-    perplexity = tf.exp(- tf.reduce_sum(avg_probs * tf.compat.v1.log(avg_probs + 1e-10)))
+    perplexity = tf.exp(- tf.reduce_sum(avg_probs * tf.log(avg_probs + 1e-10)))
     # The perplexity is the exponentiation of the entropy,
     # indicating how many codes are 'active' on average.
     # We hope the perplexity is larger.
