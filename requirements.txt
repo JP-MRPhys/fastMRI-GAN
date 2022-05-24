@@ -2,7 +2,7 @@ torch==1.1.0
 tensorlayer==1.9.0
 numpy==1.16.3
 Pillow==6.1.0
-tensorflow_gpu==1.13.1
+tensorflow_gpu==2.6.4
 nipype==1.0.4
 matplotlib==2.1.2
 nibabel==2.4.1
